@@ -1,0 +1,846 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1713">
+<meta name="description" content="声で点数を入れられるバドミントンの得点板">
+<title>バド試合記録</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+:root{
+  --bg:#eef1ec; --surface:#fcfcfb; --ink:#141a16; --muted:#586259; --line:#d6ddd6; --chip:#e5ebe5;
+  --accent:#17804a; --accent-ink:#ffffff;
+  --a:#2a78d6; --b:#eb6834; --a-soft:rgba(42,120,214,.12); --b-soft:rgba(235,104,52,.12);
+  --board:#0f1713; --board-ink:#f3f6f2; --board-muted:#9aab9f; --board-line:#26332b;
+  --warn:#b7791f;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0e1411; --surface:#1a1a19; --ink:#eef2ee; --muted:#a3aea6; --line:#2b3530; --chip:#232d27;
+    --accent:#3fb874; --accent-ink:#06150c;
+    --a:#3987e5; --b:#d95926; --a-soft:rgba(57,135,229,.18); --b-soft:rgba(217,89,38,.18);
+    --board:#070b09; --board-line:#1f2a24;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0e1411; --surface:#1a1a19; --ink:#eef2ee; --muted:#a3aea6; --line:#2b3530; --chip:#232d27;
+  --accent:#3fb874; --accent-ink:#06150c;
+  --a:#3987e5; --b:#d95926; --a-soft:rgba(57,135,229,.18); --b-soft:rgba(217,89,38,.18);
+  --board:#070b09; --board-line:#1f2a24;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+[hidden]{display:none!important}
+img{max-width:100%}
+body{margin:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg);color:var(--ink);font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;line-height:1.55}
+.wrap{max-width:760px;margin:0 auto;padding:14px 16px 40px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+h1{margin:0;font-size:1.2rem;letter-spacing:.03em}
+.tabs{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.tabs button{border:0;border-radius:0;padding:8px 16px;background:transparent}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg);font-weight:700}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:9px;padding:8px 14px;font-size:.92rem}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+button:disabled{opacity:.45;cursor:default}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.card h2{margin:0;font-size:.78rem;letter-spacing:.12em;color:var(--muted);font-weight:700}
+label{font-size:.82rem;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+input,select{font:inherit;font-size:1rem;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:8px 14px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);font-weight:700}
+.teamhead{font-weight:700;font-size:.9rem;display:flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.hint{font-size:.8rem;color:var(--muted);margin:0}
+
+/* scoreboard: deliberately dark like an LED board */
+.board{background:var(--board);color:var(--board-ink);border-radius:16px;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;user-select:none}
+.side{position:relative;border-radius:12px;padding:12px 10px 10px;display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--board-line);cursor:pointer;min-height:190px;transition:transform .08s}
+.side:active{transform:scale(.985)}
+.side.A{background:linear-gradient(180deg,rgba(57,135,229,.22),rgba(57,135,229,.04))}
+.side.B{background:linear-gradient(180deg,rgba(235,104,52,.22),rgba(235,104,52,.04))}
+.side .nm{font-weight:700;font-size:.95rem;text-align:center;line-height:1.3;min-height:2.6em;display:flex;align-items:center}
+.side .sc{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:clamp(4.2rem,22vw,7.5rem);line-height:.95;font-variant-numeric:tabular-nums}
+.side .gw{display:flex;gap:5px}
+.side .gw i{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--board-muted)}
+.side .gw i.on{background:var(--board-ink);border-color:var(--board-ink)}
+.side .srv{position:absolute;top:8px;right:8px;font-size:.72rem;font-weight:700;background:#f3d34a;color:#1a1a0a;border-radius:999px;padding:2px 8px}
+.side .tap{font-size:.7rem;color:var(--board-muted)}
+.boardmeta{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;font-size:.8rem;color:var(--board-muted);padding:0 4px}
+.boardmeta b{color:var(--board-ink);font-family:"Barlow Condensed",sans-serif;font-size:1rem;letter-spacing:.04em}
+
+.who{display:flex;flex-direction:column;gap:8px}
+.who .line{font-size:.95rem}
+.who .line b{font-size:1.05rem;white-space:nowrap}
+.court-wrap{overflow-x:auto}
+.court-wrap svg{display:block;width:100%;max-width:520px;height:auto;margin:0 auto}
+
+.toast{border-radius:10px;padding:10px 12px;font-size:.9rem;font-weight:700;background:#fdf3d8;color:#5a3d00;border:1px solid #f0d58a}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{background:var(--chip);border-color:transparent;padding:6px 11px;font-size:.86rem}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.chips .lab{font-size:.75rem;color:var(--muted);align-self:center;margin-right:2px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cmd{display:flex;gap:8px}
+.cmd input{flex:1}
+.fb{font-size:.84rem;color:var(--muted);min-height:1.3em;margin:0}
+
+/* analysis */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.stat small{color:var(--muted);font-size:.76rem}
+.pair{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}
+.pair span{display:flex;align-items:center;gap:5px;font-size:.84rem}
+.pair b{font-family:"Barlow Condensed",sans-serif;font-size:1.45rem}
+.legend{display:flex;gap:14px;font-size:.84rem;color:var(--muted);flex-wrap:wrap}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:16px;height:2px;display:inline-block}
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:.78rem;border-radius:8px;padding:6px 8px;white-space:nowrap;transform:translate(-50%,-110%);font-variant-numeric:tabular-nums}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.84rem;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:700;font-size:.76rem}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px;background:transparent}
+.bar i{display:block;height:100%}
+.hist button{text-align:left;width:100%}
+.hdr{display:flex;align-items:center;gap:8px}
+#install{padding:6px 12px;font-size:.84rem}
+/* voice */
+.voice{border-color:var(--accent)}
+.voicebar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.mic{display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;font-weight:700;font-size:1rem;background:var(--accent);color:var(--accent-ink);border-color:var(--accent);flex:1;min-width:220px;justify-content:center}
+.mic svg{width:22px;height:22px;flex:none}
+.mic[aria-pressed="true"]{background:#c8322b;border-color:#c8322b;color:#fff;animation:pulse 1.6s ease-out infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(200,50,43,.45)}100%{box-shadow:0 0 0 14px rgba(200,50,43,0)}}
+@media (prefers-reduced-motion:reduce){.mic[aria-pressed="true"]{animation:none}}
+.heard{min-height:3.2em;border-radius:10px;background:var(--bg);border:1px dashed var(--line);padding:9px 12px;font-size:.95rem;display:flex;flex-direction:column;gap:2px}
+.heard .live{color:var(--muted)}
+.heard .res{font-weight:700}
+.heard .res.ok{color:var(--accent)}
+.heard .res.ng{color:#b4442c}
+.check{flex-direction:row;align-items:center;gap:8px;font-size:.88rem;color:var(--ink)}
+.check input{width:auto}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="hdr"><h1>バド試合記録</h1><button id="install" hidden>ホーム画面に追加</button></div>
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="match" aria-selected="true">試合</button>
+      <button role="tab" data-tab="analysis" aria-selected="false">分析</button>
+      <button role="tab" data-tab="setup" aria-selected="false">新しい試合</button>
+    </div>
+  </header>
+
+  <!-- ===== setup ===== -->
+  <section id="v-setup" class="card" hidden>
+    <h2>試合の設定</h2>
+    <div class="row">
+      <div class="seg" role="group" aria-label="種目">
+        <button data-type="s" aria-pressed="false">シングルス</button>
+        <button data-type="d" aria-pressed="true">ダブルス</button>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="who">
+        <div class="teamhead"><i class="dot" style="background:var(--a)"></i>A側</div>
+        <label>チーム名<input id="nA" value="チームA" maxlength="16"></label>
+        <label><span class="pl1">選手1</span><input id="pA0" placeholder="例：原田" maxlength="12"></label>
+        <label class="p2"><span>選手2</span><input id="pA1" placeholder="例：佐藤" maxlength="12"></label>
+      </div>
+      <div class="who">
+        <div class="teamhead"><i class="dot" style="background:var(--b)"></i>B側</div>
+        <label>チーム名<input id="nB" value="チームB" maxlength="16"></label>
+        <label><span class="pl1">選手1</span><input id="pB0" placeholder="例：田中" maxlength="12"></label>
+        <label class="p2"><span>選手2</span><input id="pB1" placeholder="例：鈴木" maxlength="12"></label>
+      </div>
+    </div>
+    <div class="grid2">
+      <label>点数<select id="pts"><option value="21">21点（30点上限）</option><option value="15">15点（21点上限）</option><option value="11">11点（15点上限）</option></select></label>
+      <label>ゲーム数<select id="bo"><option value="3">3ゲームマッチ</option><option value="1">1ゲーム</option></select></label>
+    </div>
+    <div class="grid2">
+      <label>最初にサーブする側<select id="fs"><option value="A">A側</option><option value="B">B側</option></select></label>
+      <div></div>
+      <label class="p2">最初のサーバー<select id="fsv"></select></label>
+      <label class="p2">最初のレシーバー<select id="frc"></select></label>
+    </div>
+    <div class="row">
+      <button class="primary" id="start">試合開始</button>
+      <p class="hint">記録はこの端末のブラウザに保存されます。</p>
+    </div>
+  </section>
+
+  <!-- ===== match ===== -->
+  <section id="v-match" style="display:flex;flex-direction:column;gap:14px">
+    <div class="board" id="board">
+      <div class="boardmeta"><span id="gameLbl">第1ゲーム</span><span id="rallyLbl"></span></div>
+      <div class="side A" data-side="A" role="button" tabindex="0" aria-label="A側に1点">
+        <span class="srv" hidden>サーブ</span>
+        <div class="nm"></div><div class="sc">0</div><div class="gw"></div><div class="tap">タップで得点</div>
+      </div>
+      <div class="side B" data-side="B" role="button" tabindex="0" aria-label="B側に1点">
+        <span class="srv" hidden>サーブ</span>
+        <div class="nm"></div><div class="sc">0</div><div class="gw"></div><div class="tap">タップで得点</div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <div class="card voice" id="voiceCard">
+      <div class="voicebar">
+        <button id="mic" class="mic" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>
+          <span id="micLbl">声で入力をはじめる</span>
+        </button>
+        <div class="seg" role="group" aria-label="聞き取り方">
+          <button data-vmode="cont" aria-pressed="true">ずっと聞く</button>
+          <button data-vmode="once" aria-pressed="false">1回ずつ</button>
+        </div>
+      </div>
+      <div class="heard" id="heard" aria-live="polite"><span class="live" id="heardLive">マイクのボタンを押して、得点したチームや選手の名前を話してください。</span><span class="res" id="heardRes"></span></div>
+      <label class="check"><input type="checkbox" id="speakOn" checked> 得点したらスコアを読み上げる</label>
+      <p class="hint">話し方の例：「A」「Bスマッシュ」「原田プッシュ」「佐藤アウト」（ミスは相手の得点になります）「取り消し」。声で入れるにはインターネット接続が必要です。</p>
+    </div>
+
+    <div class="card">
+      <h2>サーブとレシーブ</h2>
+      <div class="who">
+        <div class="line" id="svLine"></div>
+        <div class="court-wrap"><svg id="court" viewBox="0 0 360 170" aria-label="サーバーとレシーバーの位置"></svg></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>直前のラリーの決め手（任意）</h2>
+      <p class="fb" id="lastLbl">まだラリーがありません</p>
+      <div class="chips" id="winChips"><span class="lab">決め球</span></div>
+      <div class="chips" id="errChips"><span class="lab">相手のミス</span></div>
+      <div class="chips" id="whoChips" hidden><span class="lab">誰が</span></div>
+    </div>
+
+    <div class="card">
+      <h2>文字で入力</h2>
+      <form class="cmd" id="cmdForm">
+        <input id="cmd" autocomplete="off" enterkeyhint="send" placeholder="例：A スマッシュ／佐藤 アウト／取り消し">
+        <button class="primary" type="submit">入力</button>
+      </form>
+      <p class="fb" id="cmdFb">声がうまく入らないときは、ここに打ち込んでも同じように入ります。</p>
+      <div class="row">
+        <button id="undo">1つ取り消す</button>
+        <button id="toAnalysis">分析を見る</button>
+      </div>
+    </div>
+
+    <div class="card" id="nextGame" hidden>
+      <h2 id="ngTitle">次のゲーム</h2>
+      <p class="hint" id="ngMsg"></p>
+      <div class="grid2" id="ngSel">
+        <label>最初のサーバー<select id="ngSv"></select></label>
+        <label>最初のレシーバー<select id="ngRc"></select></label>
+      </div>
+      <div class="row"><button class="primary" id="ngStart">次のゲームを始める</button></div>
+    </div>
+  </section>
+
+  <!-- ===== analysis ===== -->
+  <section id="v-analysis" style="display:none;flex-direction:column;gap:14px">
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 id="anTitle">分析</h2>
+        <div class="seg" id="gSel" role="group" aria-label="ゲーム"></div>
+      </div>
+      <p id="anResult" style="margin:0;font-weight:700"></p>
+      <div class="legend" id="legend"></div>
+      <div id="charts"></div>
+    </div>
+    <div class="card">
+      <h2>数字で見る</h2>
+      <div class="stats" id="stats"></div>
+    </div>
+    <div class="card">
+      <h2>得点の内訳</h2>
+      <div id="breakdown"></div>
+    </div>
+    <div class="card" id="playerCard">
+      <h2>選手ごと</h2>
+      <div class="tbl" id="players"></div>
+    </div>
+    <div class="card">
+      <h2>ラリーの記録</h2>
+      <div class="tbl" id="log"></div>
+    </div>
+    <div class="card">
+      <h2>まとめ・書き出し</h2>
+      <div class="row"><button id="copy">まとめをコピー</button><button id="csv">ラリー記録をCSVで保存</button><span class="fb" id="copyFb"></span></div>
+      <textarea id="copyTxt" readonly rows="6" style="width:100%;font:inherit;font-size:.84rem;border:1px solid var(--line);border-radius:9px;padding:8px;background:var(--bg);color:var(--ink)" hidden></textarea>
+    </div>
+    <div class="card hist">
+      <h2>過去の試合（この端末）</h2>
+      <div id="history" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(()=>{
+// ---------- storage ----------
+const KEY='bad-score-v1';
+const load=()=>{ try{ return JSON.parse(localStorage.getItem(KEY))||{}; }catch(e){ return {}; } };
+const save=()=>{ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){} };
+let store=load(); if(!store.history) store.history=[];
+let match=store.current||null;
+let viewMatch=null; // analysis target (current or history)
+
+// ---------- rules ----------
+const WIN={smash:'スマッシュ',push:'プッシュ',drive:'ドライブ',drop:'ドロップ',hairpin:'ヘアピン',clear:'クリア',ace:'サービスエース'};
+const ERR={net:'ネットミス',out:'アウト',smiss:'サービスミス',fault:'フォルト',miss:'その他のミス'};
+const other=t=>t==='A'?'B':'A';
+const capOf=p=>p===21?30:(p===15?21:15);
+const half=p=>Math.ceil(p/2);
+function pname(m,t,i){ const tm=m.teams[t]; const n=(tm.players[i]||'').trim(); return n|| (m.type==='s'?tm.name:tm.name+(i+1)); }
+function tname(m,t){ const tm=m.teams[t]; return m.type==='s'?((tm.players[0]||'').trim()||tm.name):tm.name; }
+
+function replay(m,g){
+  const st={score:{A:0,B:0},serve:g.start.serve,pos:{}};
+  const r=g.start.serve, o=other(r);
+  st.pos[r]={R:g.start.server,L:1-g.start.server};
+  st.pos[o]={R:g.start.receiver,L:1-g.start.receiver};
+  if(m.type==='s'){ st.pos.A={R:0,L:0}; st.pos.B={R:0,L:0}; }
+  const snap=()=>{ const court=st.score[st.serve]%2===0?'R':'L'; return {score:{...st.score},serve:st.serve,court,server:st.pos[st.serve][court],receiver:st.pos[other(st.serve)][court],pos:JSON.parse(JSON.stringify(st.pos))}; };
+  const before=[];
+  for(const ra of g.rallies){
+    before.push(snap());
+    if(ra.w===st.serve){ st.score[ra.w]++; if(m.type==='d'){ const p=st.pos[ra.w]; [p.R,p.L]=[p.L,p.R]; } }
+    else { st.score[ra.w]++; st.serve=ra.w; }
+  }
+  return {before,now:snap()};
+}
+function gameWinner(m,score){
+  for(const t of ['A','B']){ const s=score[t], o=score[other(t)]; if((s>=m.P&&s-o>=2)||s>=m.cap) return t; }
+  return null;
+}
+const winsOf=(m,t)=>m.games.filter(g=>g.winner===t).length;
+const curGame=()=>match&&match.games[match.games.length-1];
+
+// ---------- UI refs ----------
+const $=id=>document.getElementById(id);
+const tabs=[...document.querySelectorAll('[data-tab]')];
+function showTab(t){
+  tabs.forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
+  $('v-setup').hidden=t!=='setup';
+  $('v-match').style.display=t==='match'?'flex':'none';
+  $('v-analysis').style.display=t==='analysis'?'flex':'none';
+  if(t==='analysis'){ viewMatch=viewMatch||match||store.history[0]||null; renderAnalysis(); }
+  if(t==='match') renderMatch();
+}
+tabs.forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+
+// ---------- setup ----------
+let setupType='d';
+function refreshSetup(){
+  document.querySelectorAll('[data-type]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.type===setupType));
+  document.querySelectorAll('.p2').forEach(e=>e.hidden=setupType==='s');
+  document.querySelectorAll('.pl1').forEach(e=>e.textContent=setupType==='s'?'選手名':'選手1');
+  const fs=$('fs').value, fr=other(fs);
+  const nm=(t,i)=>($('p'+t+i).value.trim()||($('n'+t).value.trim()||t)+(i+1));
+  const opt=(t)=>[0,1].map(i=>`<option value="${i}">${esc(nm(t,i))}</option>`).join('');
+  const sv=$('fsv').value, rc=$('frc').value;
+  $('fsv').innerHTML=opt(fs); $('frc').innerHTML=opt(fr);
+  $('fsv').value=sv||'0'; $('frc').value=rc||'0';
+}
+document.querySelectorAll('[data-type]').forEach(b=>b.onclick=()=>{setupType=b.dataset.type; refreshSetup();});
+['nA','nB','pA0','pA1','pB0','pB1','fs'].forEach(id=>$(id).addEventListener('input',refreshSetup));
+$('fs').addEventListener('change',()=>{ $('fsv').value='0'; $('frc').value='0'; refreshSetup(); });
+$('start').onclick=()=>{
+  if(match && !match.finished && match.games.some(g=>g.rallies.length)){ archive(match); }
+  const P=+$('pts').value;
+  match={id:Date.now().toString(36),created:new Date().toISOString(),type:setupType,
+    teams:{A:{name:$('nA').value.trim()||'チームA',players:[$('pA0').value.trim(),$('pA1').value.trim()]},
+           B:{name:$('nB').value.trim()||'チームB',players:[$('pB0').value.trim(),$('pB1').value.trim()]}},
+    P,cap:capOf(P),need:+$('bo').value===3?2:1,
+    games:[{start:{serve:$('fs').value,server:setupType==='d'?+$('fsv').value:0,receiver:setupType==='d'?+$('frc').value:0},rallies:[],winner:null}],
+    finished:false};
+  store.current=match; save(); viewMatch=match; lastToast=''; showTab('match');
+};
+function archive(m){ if(m.sample) return; store.history=[m,...store.history.filter(h=>h.id!==m.id)].slice(0,30); }
+
+// ---------- match actions ----------
+let lastToast='';
+function addPoint(w,reason,who){
+  if(!match||match.finished) return;
+  const g=curGame(); if(g.winner) return;
+  g.rallies.push({w,reason:reason||null,who:who??null,t:Date.now()});
+  const rp=replay(match,g), sc=rp.now.score;
+  const win=gameWinner(match,sc);
+  lastToast='';
+  if(win){
+    g.winner=win;
+    if(winsOf(match,win)>=match.need){ match.finished=true; archive(match); lastToast=`試合終了：${tname(match,win)}の勝ち（${match.games.map(x=>{const s=replay(match,x).now.score;return s.A+'-'+s.B}).join(', ')}）`; }
+    else lastToast=`第${match.games.length}ゲーム終了：${tname(match,win)}が ${sc[win]}-${sc[other(win)]} で取りました。エンドを交代します。`;
+  } else {
+    const h=half(match.P), last=match.games.length===match.need*2-1 && match.need>1;
+    if(Math.max(sc.A,sc.B)===h && Math.max(sc.A-(w==='A'?1:0),sc.B-(w==='B'?1:0))<h){
+      lastToast=`インターバル（${h}点）`+(last?'：ファイナルゲームなのでエンドを交代します。':'');
+    }
+  }
+  pend={};
+  save(); renderMatch();
+}
+function undo(){
+  if(!match) return;
+  let g=curGame();
+  if(!g.rallies.length && match.games.length>1){ match.games.pop(); g=curGame(); }
+  if(!g.rallies.length) return;
+  g.rallies.pop(); g.winner=null;
+  if(match.finished){ match.finished=false; store.history=store.history.filter(h=>h.id!==match.id); }
+  lastToast=''; pend={}; save(); renderMatch();
+}
+$('undo').onclick=undo;
+$('toAnalysis').onclick=()=>{ viewMatch=match; showTab('analysis'); };
+document.querySelectorAll('.side').forEach(el=>{
+  el.onclick=()=>pointWithCall(el.dataset.side);
+  el.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pointWithCall(el.dataset.side); } };
+});
+
+// reason tagging for the last rally
+let pend={};
+function lastRally(){ const g=curGame(); if(g&&g.rallies.length) return g.rallies[g.rallies.length-1]; const p=match&&match.games[match.games.length-2]; return p&&p.rallies[p.rallies.length-1]; }
+function buildChips(){
+  const wc=$('winChips'), ec=$('errChips');
+  Object.entries(WIN).forEach(([k,v])=>{ const b=document.createElement('button'); b.textContent=v; b.dataset.r='w:'+k; wc.appendChild(b); });
+  Object.entries(ERR).forEach(([k,v])=>{ const b=document.createElement('button'); b.textContent=v; b.dataset.r='e:'+k; ec.appendChild(b); });
+  [...wc.querySelectorAll('button'),...ec.querySelectorAll('button')].forEach(b=>b.onclick=()=>{
+    const r=lastRally(); if(!r) return;
+    r.reason=r.reason===b.dataset.r?null:b.dataset.r; if(!r.reason) r.who=null;
+    save(); renderReason();
+  });
+}
+function renderReason(){
+  const r=match?lastRally():null;
+  const lbl=$('lastLbl');
+  if(!r){ lbl.textContent='まだラリーがありません'; }
+  else {
+    const g=match.games.find(x=>x.rallies.includes(r)), i=g.rallies.indexOf(r);
+    const s=replay(match,{...g,rallies:g.rallies.slice(0,i+1)}).now.score;
+    lbl.textContent=`直前：${tname(match,r.w)}の得点（${s.A}-${s.B}）`+(r.reason?`・${reasonLabel(r.reason)}`:'');
+  }
+  document.querySelectorAll('#winChips button,#errChips button').forEach(b=>b.setAttribute('aria-pressed',!!r&&r.reason===b.dataset.r));
+  const wc=$('whoChips');
+  wc.querySelectorAll('button').forEach(b=>b.remove());
+  if(r&&r.reason&&match.type==='d'){
+    const team=r.reason.startsWith('w:')?r.w:other(r.w);
+    [0,1].forEach(i=>{ const b=document.createElement('button'); b.textContent=pname(match,team,i); b.setAttribute('aria-pressed',r.who===i);
+      b.onclick=()=>{ r.who=r.who===i?null:i; save(); renderReason(); }; wc.appendChild(b); });
+    wc.hidden=false;
+  } else wc.hidden=true;
+}
+const reasonLabel=r=>r?(r[0]==='w'?WIN[r.slice(2)]:ERR[r.slice(2)]):'';
+
+// next game
+function renderNextGame(){
+  const g=curGame(), box=$('nextGame');
+  if(!match||match.finished||!g.winner){ box.hidden=true; return; }
+  box.hidden=false;
+  const w=g.winner;
+  $('ngTitle').textContent=`第${match.games.length+1}ゲームの準備`;
+  $('ngMsg').textContent=`前のゲームを取った${tname(match,w)}からサーブします。`;
+  $('ngSel').hidden=match.type==='s';
+  $('ngSv').innerHTML=[0,1].map(i=>`<option value="${i}">${esc(pname(match,w,i))}</option>`).join('');
+  $('ngRc').innerHTML=[0,1].map(i=>`<option value="${i}">${esc(pname(match,other(w),i))}</option>`).join('');
+}
+$('ngStart').onclick=()=>{
+  const w=curGame().winner;
+  match.games.push({start:{serve:w,server:match.type==='d'?+$('ngSv').value:0,receiver:match.type==='d'?+$('ngRc').value:0},rallies:[],winner:null});
+  lastToast=''; save(); renderMatch();
+};
+
+// ---------- command (dictation) ----------
+const WINKW=[['smash',/スマッシュ|すまっしゅ|スマッシ/],['push',/プッシュ|ぷっしゅ/],['drive',/ドライブ|どらいぶ/],['drop',/ドロップ|どろっぷ|カット/],['hairpin',/ヘアピン|へあぴん|ヘヤピン/],['clear',/クリア|くりあ/],['ace',/エース|えーす/]];
+const ERRKW=[['smiss',/サービスミス|サーブミス|さーぶみす/],['fault',/フォルト|ふぉると/],['out',/アウト|あうと/],['net',/ネット(?!前)|ねっと/],['miss',/ミス|みす/]];
+function norm(s){ return s.normalize('NFKC').replace(/\s+/g,'').toLowerCase(); }
+function parse(text){
+  const t=norm(text); if(!t) return null;
+  if(/取り消し|とりけし|取消|戻す|もどす|キャンセル|undo/.test(t)) return {undo:true};
+  let reason=null;
+  for(const [k,re] of ERRKW) if(re.test(t)){ reason='e:'+k; break; }
+  if(!reason) for(const [k,re] of WINKW) if(re.test(t)){ reason='w:'+k; break; }
+  // subject: player name > team name > letter
+  let team=null, who=null;
+  for(const tm of ['A','B']) for(const i of [0,1]){ const n=norm(match.teams[tm].players[i]||''); if(n&&t.includes(n)){ team=tm; who=i; } }
+  if(!team) for(const tm of ['A','B']){ const n=norm(match.teams[tm].name); if(n&&t.includes(n)) team=tm; }
+  if(!team){ if(/(^|[^a-z])a([^a-z]|$)|えー|エー/.test(t)) team='A'; else if(/(^|[^a-z])b([^a-z]|$)|びー|ビー/.test(t)) team='B'; }
+  if(!team) return {error:'どちらの得点か読み取れませんでした（チーム名・選手名・A/Bを入れてください）'};
+  const isErr=reason&&reason[0]==='e';
+  return {w:isErr?other(team):team,reason,who:match.type==='d'?who:null};
+}
+$('cmdForm').onsubmit=e=>{
+  e.preventDefault();
+  if(!match){ $('cmdFb').textContent='先に「新しい試合」で試合を始めてください。'; return; }
+  const text=$('cmd').value; const r=parse(text);
+  if(!r){ return; }
+  if(r.undo){ undo(); $('cmdFb').textContent='1つ取り消しました。'; $('cmd').value=''; return; }
+  if(r.error){ $('cmdFb').textContent=r.error; return; }
+  if(match.finished||curGame().winner){ $('cmdFb').textContent='ゲームが終わっています。次のゲームを始めてから入力してください。'; return; }
+  pointWithCall(r.w,r.reason,r.who);
+  $('cmdFb').textContent=`「${text}」→ ${tname(match,r.w)}に1点`+(r.reason?`（${reasonLabel(r.reason)}）`:'');
+  $('cmd').value='';
+};
+
+// ---------- render match ----------
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function renderMatch(){
+  const has=!!match;
+  document.querySelectorAll('.side').forEach(el=>{
+    const t=el.dataset.side;
+    el.querySelector('.nm').textContent=has?tname(match,t):(t+'側');
+    const g=has?curGame():null, rp=has?replay(match,g):null;
+    el.querySelector('.sc').textContent=has?rp.now.score[t]:0;
+    el.querySelector('.gw').innerHTML=has&&match.need>1?Array.from({length:match.need},(_,i)=>`<i class="${i<winsOf(match,t)?'on':''}"></i>`).join(''):'';
+    el.querySelector('.srv').hidden=!(has&&!g.winner&&rp.now.serve===t);
+    el.querySelector('.tap').textContent=has&&!match.finished&&!g.winner?'タップで得点':'';
+  });
+  if(!has){ $('svLine').textContent='「新しい試合」から始めてください。'; $('court').innerHTML=''; $('gameLbl').textContent=''; $('rallyLbl').textContent=''; renderReason(); return; }
+  const g=curGame(), now=replay(match,g).now;
+  $('gameLbl').textContent=match.finished?'試合終了':`第${match.games.length}ゲーム`;
+  $('rallyLbl').innerHTML=`${match.P}点マッチ・<b>${g.rallies.length}</b> ラリー`;
+  const toast=$('toast'); toast.hidden=!lastToast; toast.textContent=lastToast;
+  if(g.winner){ $('svLine').innerHTML=esc(match.finished?'試合が終わりました。「分析」で振り返れます。':'ゲームが終わりました。下で次のゲームを始めてください。'); }
+  else {
+    const courtJ=now.court==='R'?'右':'左';
+    $('svLine').innerHTML=`サーバー：<b>${esc(pname(match,now.serve,now.server))}</b>（${courtJ}コート） → レシーバー：<b>${esc(pname(match,other(now.serve),now.receiver))}</b>`;
+  }
+  drawCourt(now,g.winner);
+  renderReason(); renderNextGame();
+}
+function drawCourt(now,over){
+  // A on the left facing right: A's right court = lower half. B on the right facing left: B's right court = upper half.
+  const box={A:{R:{x:95,y:120},L:{x:95,y:50}},B:{R:{x:265,y:50},L:{x:265,y:120}}};
+  const col={A:'var(--a)',B:'var(--b)'};
+  let svg=`<rect x="20" y="15" width="320" height="140" rx="4" fill="var(--a-soft)" stroke="var(--line)"/>
+  <rect x="180" y="15" width="160" height="140" rx="0" fill="var(--b-soft)"/>
+  <rect x="20" y="15" width="320" height="140" rx="4" fill="none" stroke="var(--muted)" stroke-width="1.5"/>
+  <line x1="180" y1="8" x2="180" y2="162" stroke="var(--ink)" stroke-width="2.5" stroke-dasharray="4 3"/>
+  <line x1="20" y1="85" x2="140" y2="85" stroke="var(--muted)"/><line x1="220" y1="85" x2="340" y2="85" stroke="var(--muted)"/>
+  <line x1="140" y1="15" x2="140" y2="155" stroke="var(--muted)"/><line x1="220" y1="15" x2="340" y2="15" stroke="none"/><line x1="220" y1="15" x2="220" y2="155" stroke="var(--muted)"/>
+  <text x="180" y="170" font-size="10" text-anchor="middle" fill="var(--muted)">ネット</text>`;
+  const ppl=[];
+  for(const t of ['A','B']){
+    const courts=match.type==='s'?[now.serve===t?now.court:now.court]:['R','L'];
+    for(const c of courts){
+      const idx=now.pos[t][c], p=box[t][c];
+      const isS=!over&&t===now.serve&&idx===now.server, isR=!over&&t!==now.serve&&idx===now.receiver;
+      ppl.push({t,c,idx,p,isS,isR});
+    }
+  }
+  const S=ppl.find(q=>q.isS), Rv=ppl.find(q=>q.isR);
+  if(S&&Rv) svg+=`<line x1="${S.p.x}" y1="${S.p.y}" x2="${Rv.p.x}" y2="${Rv.p.y}" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="5 4" opacity=".6"/>`;
+  for(const q of ppl){
+    const n=esc(pname(match,q.t,q.idx));
+    svg+=`<circle cx="${q.p.x}" cy="${q.p.y}" r="${q.isS||q.isR?15:12}" fill="${col[q.t]}" stroke="${q.isS?'#f3d34a':q.isR?'var(--ink)':'var(--surface)'}" stroke-width="${q.isS||q.isR?3:2}"/>`;
+    svg+=`<text x="${q.p.x}" y="${q.p.y+30}" font-size="11.5" font-weight="700" text-anchor="middle" fill="var(--ink)">${n}${q.isS?'（サーブ）':q.isR?'（レシーブ）':''}</text>`;
+  }
+  svg+=`<text x="26" y="30" font-size="9.5" fill="var(--muted)">A 左</text><text x="26" y="150" font-size="9.5" fill="var(--muted)">A 右</text>
+  <text x="334" y="30" font-size="9.5" text-anchor="end" fill="var(--muted)">B 右</text><text x="334" y="150" font-size="9.5" text-anchor="end" fill="var(--muted)">B 左</text>`;
+  $('court').innerHTML=svg;
+}
+
+// ---------- analysis ----------
+let gSel='all';
+function analyze(m,games){
+  const res={A:{},B:{}};
+  for(const t of ['A','B']) res[t]={pts:0,served:0,wonServe:0,recv:0,wonRecv:0,run:0,win:{},err:{},unk:0};
+  const rows=[];
+  games.forEach(({g,gi})=>{
+    const rp=replay(m,g); let cur=null,len=0;
+    g.rallies.forEach((ra,i)=>{
+      const b=rp.before[i], srv=b.serve, rcv=other(srv);
+      res[srv].served++; res[rcv].recv++;
+      res[ra.w].pts++;
+      if(ra.w===srv) res[srv].wonServe++; else res[rcv].wonRecv++;
+      if(cur===ra.w) len++; else {cur=ra.w; len=1;}
+      res[ra.w].run=Math.max(res[ra.w].run,len);
+      if(!ra.reason) res[ra.w].unk++;
+      else if(ra.reason[0]==='w') res[ra.w].win[ra.reason]=(res[ra.w].win[ra.reason]||0)+1;
+      else res[other(ra.w)].err[ra.reason]=(res[other(ra.w)].err[ra.reason]||0)+1;
+      const after={...b.score}; after[ra.w]++;
+      rows.push({gi,i:i+1,ra,b,after});
+    });
+  });
+  return {res,rows};
+}
+function renderAnalysis(){
+  const m=viewMatch;
+  renderHistory();
+  if(!m||!m.games.some(g=>g.rallies.length)){
+    $('anTitle').textContent='分析'; $('anResult').textContent='記録された試合がまだありません。'; ['legend','charts','stats','breakdown','players','log'].forEach(id=>$(id).innerHTML=''); $('gSel').innerHTML=''; $('playerCard').hidden=true; return;
+  }
+  const played=m.games.map((g,gi)=>({g,gi})).filter(x=>x.g.rallies.length);
+  if(gSel!=='all' && !played.some(x=>x.gi===+gSel)) gSel='all';
+  $('gSel').innerHTML=['all',...played.map(x=>String(x.gi))].map(k=>`<button data-g="${k}" aria-pressed="${gSel===k}">${k==='all'?'全体':'第'+(+k+1)+'G'}</button>`).join('');
+  $('gSel').querySelectorAll('button').forEach(b=>b.onclick=()=>{gSel=b.dataset.g; renderAnalysis();});
+  const sel=gSel==='all'?played:played.filter(x=>x.gi===+gSel);
+  $('anTitle').textContent=`${tname(m,'A')} vs ${tname(m,'B')}`;
+  const scores=m.games.filter(g=>g.rallies.length).map(g=>{const s=replay(m,g).now.score; return `${s.A}-${s.B}`;}).join(', ');
+  const wA=winsOf(m,'A'), wB=winsOf(m,'B');
+  $('anResult').textContent=(m.finished?`${tname(m,wA>wB?'A':'B')}の勝ち　`:'試合中　')+`（${scores}）`;
+  $('legend').innerHTML=['A','B'].map(t=>`<span><i style="background:var(--${t.toLowerCase()})"></i>${esc(tname(m,t))}</span>`).join('');
+  $('charts').innerHTML=''; sel.forEach(x=>drawChart(m,x.g,x.gi,sel.length>1));
+  const {res,rows}=analyze(m,sel);
+  const pct=(a,b)=>b?Math.round(a/b*100)+'%':'–';
+  const tile=(label,fa,fb,note)=>`<div class="stat"><small>${label}</small>
+    <div class="pair"><span><i class="dot" style="background:var(--a)"></i>${esc(tname(m,'A'))}</span><b>${fa}</b></div>
+    <div class="pair"><span><i class="dot" style="background:var(--b)"></i>${esc(tname(m,'B'))}</span><b>${fb}</b></div>${note?`<small>${note}</small>`:''}</div>`;
+  $('stats').innerHTML=
+    tile('得点',res.A.pts,res.B.pts)+
+    tile('最大連続得点',res.A.run,res.B.run)+
+    tile('サービス時の得点率',pct(res.A.wonServe,res.A.served),pct(res.B.wonServe,res.B.served),'サーブ権を持っていたラリーで取れた割合')+
+    tile('レシーブ時の得点率',pct(res.A.wonRecv,res.A.recv),pct(res.B.wonRecv,res.B.recv),'相手のサーブで始まったラリーで取れた割合');
+  // breakdown
+  const bd=t=>{
+    const r=res[t], o=res[other(t)];
+    const win=Object.values(r.win).reduce((a,b)=>a+b,0), gift=Object.values(o.err).reduce((a,b)=>a+b,0), unk=r.unk;
+    const tot=Math.max(1,win+gift+unk);
+    const list=(obj,dict)=>Object.entries(obj).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${dict[k.slice(2)]} ${v}`).join('・')||'なし';
+    return `<div class="stat" style="gap:8px"><div class="teamhead"><i class="dot" style="background:var(--${t.toLowerCase()})"></i>${esc(tname(m,t))}　得点 ${r.pts}</div>
+      <div class="bar" role="img" aria-label="決め球${win}、相手のミス${gift}、未記録${unk}"><i style="width:${win/tot*100}%;background:var(--${t.toLowerCase()})"></i><i style="width:${gift/tot*100}%;background:var(--${t.toLowerCase()});opacity:.45"></i><i style="width:${unk/tot*100}%;background:var(--line)"></i></div>
+      <small>決め球 ${win}（${list(r.win,WIN)}）</small><small>相手のミスでの得点 ${gift}</small><small>自分たちのミス ${Object.values(r.err).reduce((a,b)=>a+b,0)}（${list(r.err,ERR)}）</small><small>未記録 ${unk}</small></div>`;
+  };
+  $('breakdown').innerHTML=`<div class="stats">${bd('A')}${bd('B')}</div><p class="hint">濃い色＝決め球、薄い色＝相手のミス、灰色＝決め手を記録していない得点</p>`;
+  // players
+  if(m.type==='d'){
+    $('playerCard').hidden=false;
+    const pr=[];
+    for(const t of ['A','B']) for(const i of [0,1]){
+      let w=0,e=0,sv=0,svw=0;
+      rows.forEach(r=>{ if(r.ra.reason&&r.ra.who===i){ if(r.ra.reason[0]==='w'&&r.ra.w===t) w++; if(r.ra.reason[0]==='e'&&r.ra.w===other(t)) e++; }
+        if(r.b.serve===t&&r.b.server===i){ sv++; if(r.ra.w===t) svw++; } });
+      pr.push(`<tr><td><i class="dot" style="background:var(--${t.toLowerCase()})"></i> ${esc(pname(m,t,i))}</td><td>${w}</td><td>${e}</td><td>${sv}</td><td>${pct(svw,sv)}</td></tr>`);
+    }
+    $('players').innerHTML=`<table><thead><tr><th>選手</th><th>決め球</th><th>ミス</th><th>サーブ数</th><th>サーブ時の得点率</th></tr></thead><tbody>${pr.join('')}</tbody></table>`;
+  } else $('playerCard').hidden=true;
+  // log
+  $('log').innerHTML=`<table><thead><tr><th>G</th><th>#</th><th>サーバー</th><th>得点</th><th>スコア</th><th>決め手</th></tr></thead><tbody>${
+    rows.map(r=>`<tr><td>${r.gi+1}</td><td>${r.i}</td><td>${esc(pname(m,r.b.serve,r.b.server))}</td><td><i class="dot" style="background:var(--${r.ra.w.toLowerCase()})"></i> ${esc(tname(m,r.ra.w))}</td><td>${r.after.A}-${r.after.B}</td><td>${r.ra.reason?esc(reasonLabel(r.ra.reason)+(m.type==='d'&&r.ra.who!=null?'（'+pname(m,r.ra.reason[0]==='w'?r.ra.w:other(r.ra.w),r.ra.who)+'）':'')):'–'}</td></tr>`).join('')}</tbody></table>`;
+  // summary text
+  const lines=[`${tname(m,'A')} vs ${tname(m,'B')}：${$('anResult').textContent.trim()}`,
+    `得点 ${res.A.pts}-${res.B.pts}／最大連続 ${res.A.run}-${res.B.run}`,
+    `サービス時の得点率 ${pct(res.A.wonServe,res.A.served)} / ${pct(res.B.wonServe,res.B.served)}`,
+    `レシーブ時の得点率 ${pct(res.A.wonRecv,res.A.recv)} / ${pct(res.B.wonRecv,res.B.recv)}`];
+  for(const t of ['A','B']){ const r=res[t]; lines.push(`${tname(m,t)}：決め球 ${Object.values(r.win).reduce((a,b)=>a+b,0)}、ミス ${Object.values(r.err).reduce((a,b)=>a+b,0)}`); }
+  $('copyTxt').value=lines.join('\n');
+}
+function drawChart(m,g,gi,titled){
+  const rp=replay(m,g), n=g.rallies.length;
+  const ptsA=[0], ptsB=[0]; rp.before.forEach((b,i)=>{ const s={...b.score}; s[g.rallies[i].w]++; ptsA.push(s.A); ptsB.push(s.B); });
+  const maxY=Math.max(m.P,...ptsA,...ptsB);
+  const W=640,H=260,l=34,r=64,t=14,b=30, pw=W-l-r, ph=H-t-b;
+  const X=i=>l+(n?i/n:0)*pw, Y=v=>t+ph-(v/maxY)*ph;
+  const step=arr=>arr.map((v,i)=>i===0?`M${X(0)},${Y(v)}`:`H${X(i)}V${Y(v)}`).join('');
+  let grid='';
+  const ticks=[0,Math.round(maxY/3),Math.round(maxY*2/3),maxY];
+  ticks.forEach(v=>{ grid+=`<line x1="${l}" x2="${l+pw}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${l-6}" y="${Y(v)+4}" font-size="11" text-anchor="end" fill="var(--muted)">${v}</text>`; });
+  const xt=[0,Math.round(n/2),n].filter((v,i,a)=>a.indexOf(v)===i);
+  xt.forEach(v=>{ grid+=`<text x="${X(v)}" y="${H-10}" font-size="11" text-anchor="middle" fill="var(--muted)">${v}</text>`; });
+  grid+=`<text x="${l+pw}" y="${H-10}" font-size="11" text-anchor="end" fill="var(--muted)" dx="40">ラリー</text>`;
+  const endA=ptsA[n], endB=ptsB[n];
+  let ya=Y(endA), yb=Y(endB); if(Math.abs(ya-yb)<14){ if(ya<yb){ya-=7;yb+=7;} else {ya+=7;yb-=7;} }
+  const wrap=document.createElement('div'); wrap.className='chart';
+  wrap.innerHTML=(titled?`<p class="hint" style="margin:6px 0 2px">第${gi+1}ゲーム（${endA}-${endB}）</p>`:'')+
+  `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="第${gi+1}ゲームの点数の推移">
+    ${grid}
+    <path d="${step(ptsB)}" fill="none" stroke="var(--b)" stroke-width="2" stroke-linejoin="round"/>
+    <path d="${step(ptsA)}" fill="none" stroke="var(--a)" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="${X(n)}" cy="${Y(endA)}" r="4" fill="var(--a)" stroke="var(--surface)" stroke-width="2"/>
+    <circle cx="${X(n)}" cy="${Y(endB)}" r="4" fill="var(--b)" stroke="var(--surface)" stroke-width="2"/>
+    <text x="${X(n)+8}" y="${ya+4}" font-size="12" font-weight="700" fill="var(--ink)">${esc(tname(m,'A'))} ${endA}</text>
+    <text x="${X(n)+8}" y="${yb+4}" font-size="12" font-weight="700" fill="var(--ink)">${esc(tname(m,'B'))} ${endB}</text>
+    <line class="xh" x1="0" x2="0" y1="${t}" y2="${t+ph}" stroke="var(--muted)" stroke-width="1" visibility="hidden"/>
+    <rect x="${l}" y="${t}" width="${pw}" height="${ph}" fill="transparent" class="hit"/>
+  </svg><div class="tip" hidden></div>`;
+  $('charts').appendChild(wrap);
+  const svg=wrap.querySelector('svg'), tip=wrap.querySelector('.tip'), xh=wrap.querySelector('.xh');
+  const move=e=>{
+    const rc=svg.getBoundingClientRect(), sx=(e.clientX-rc.left)/rc.width*W;
+    const i=Math.max(1,Math.min(n,Math.round((sx-l)/pw*n))); if(!n) return;
+    xh.setAttribute('x1',X(i)); xh.setAttribute('x2',X(i)); xh.setAttribute('visibility','visible');
+    const ra=g.rallies[i-1];
+    tip.hidden=false; tip.style.left=(X(i)/W*100)+'%'; tip.style.top=(Math.min(Y(ptsA[i]),Y(ptsB[i]))/H*rc.height)+'px';
+    tip.textContent=`${i}本目：${ptsA[i]}-${ptsB[i]}　${tname(m,ra.w)}の得点${ra.reason?'（'+reasonLabel(ra.reason)+'）':''}`;
+  };
+  svg.addEventListener('pointermove',move); svg.addEventListener('pointerdown',move);
+  svg.addEventListener('pointerleave',()=>{ tip.hidden=true; xh.setAttribute('visibility','hidden'); });
+}
+function renderHistory(){
+  const list=[...(match&&!match.finished&&match.games.some(g=>g.rallies.length)?[match]:[]),...store.history];
+  $('history').innerHTML=list.length?'':'<p class="hint">まだありません。</p>';
+  list.forEach(m=>{
+    const b=document.createElement('button');
+    const sc=m.games.filter(g=>g.rallies.length).map(g=>{const s=replay(m,g).now.score; return s.A+'-'+s.B;}).join(', ');
+    const d=new Date(m.created);
+    b.textContent=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}　${tname(m,'A')} vs ${tname(m,'B')}（${sc}）${m.finished?'':'・試合中'}`;
+    if(viewMatch&&viewMatch.id===m.id) b.style.borderColor='var(--accent)';
+    b.onclick=()=>{ viewMatch=m; gSel='all'; renderAnalysis(); window.scrollTo({top:0,behavior:'smooth'}); };
+    $('history').appendChild(b);
+  });
+}
+$('copy').onclick=async()=>{
+  const txt=$('copyTxt').value;
+  try{ await navigator.clipboard.writeText(txt); $('copyFb').textContent='コピーしました。'; }
+  catch(e){ const ta=$('copyTxt'); ta.hidden=false; ta.focus(); ta.select(); $('copyFb').textContent='自動でコピーできなかったので、下の文字を選択してコピーしてください。'; }
+};
+
+// ---------- voice recognition ----------
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null, listening=false, vmode='cont', speaking=false, restartTimer=null;
+const FILLER=/えーと|ええと|えっと|ええっと|あのー|あの|えーっと|うーん|んー/g;
+function heardMsg(live,res,cls){ if(live!=null) $('heardLive').textContent=live; if(res!=null){ const r=$('heardRes'); r.textContent=res; r.className='res'+(cls?' '+cls:''); } }
+function setMicUI(){
+  $('mic').setAttribute('aria-pressed',listening);
+  $('micLbl').textContent=listening?(vmode==='cont'?'聞いています（押すと止める）':'どうぞ話してください'):'声で入力をはじめる';
+  document.querySelectorAll('[data-vmode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.vmode===vmode));
+}
+function startRec(){
+  if(!SR||rec) return;
+  const r=new SR(); rec=r;
+  r.lang='ja-JP'; r.interimResults=true; r.continuous=vmode==='cont'; r.maxAlternatives=3;
+  r.onresult=e=>{
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const res=e.results[i];
+      if(res.isFinal){ handleSpeech(Array.from(res).map(a=>a.transcript)); }
+      else heardMsg('聞き取り中：'+res[0].transcript,null);
+    }
+  };
+  r.onerror=e=>{
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){ listening=false; setMicUI(); heardMsg('マイクが使えません。ブラウザの設定でこのサイトのマイクを「許可」にしてください。','', ''); }
+    else if(e.error==='network'){ heardMsg('音声認識にはインターネット接続が必要です。電波を確認するか、点数板のタップで入力してください。',null); }
+    else if(e.error==='audio-capture'){ listening=false; setMicUI(); heardMsg('マイクが見つかりません。',null); }
+  };
+  r.onend=()=>{
+    if(rec===r) rec=null;
+    if(listening&&vmode==='cont'&&!speaking){ clearTimeout(restartTimer); restartTimer=setTimeout(()=>{ if(listening&&!rec&&!speaking) startRec(); },250); }
+    else if(vmode==='once'&&!speaking){ listening=false; setMicUI(); releaseWake(); }
+  };
+  try{ r.start(); }catch(err){ rec=null; }
+}
+function stopRec(){ clearTimeout(restartTimer); if(rec){ const r=rec; rec=null; try{ r.abort(); }catch(e){} } }
+function handleSpeech(alts){
+  if(!match){ heardMsg('','先に「新しい試合」で試合を始めてください。','ng'); return; }
+  const said=alts[0]||'';
+  let best=null;
+  for(const a of alts){
+    const t=a.replace(FILLER,'').trim();
+    if(!t) continue;
+    if(norm(t).length>24) continue;          // 長い会話は無視
+    const r=parse(t);
+    if(r&&(r.undo||r.w)){ best={r,text:a}; break; }
+  }
+  heardMsg('聞こえた言葉：「'+said+'」',null);
+  if(!best){ heardMsg(null,'得点の指示として読み取れませんでした（チーム名・選手名・A/Bを入れてください）','ng'); return; }
+  const {r}=best;
+  if(r.undo){ undo(); const s=scoreNow(); heardMsg(null,'1つ取り消しました'+(s?`（${s.A}-${s.B}）`:''),'ok'); say('取り消しました。'+callScore()); return; }
+  if(match.finished||curGame().winner){ heardMsg(null,'ゲームが終わっています。次のゲームを始めてから入力してください。','ng'); return; }
+  pointWithCall(r.w,r.reason,r.who);
+  const s=scoreNow();
+  heardMsg(null,`${tname(match,r.w)}に1点`+(r.reason?`（${reasonLabel(r.reason)}）`:'')+(s?`　${s.A}-${s.B}`:''),'ok');
+}
+// 得点を入れて、審判のコールのように読み上げる
+function pointWithCall(w,reason,who){
+  if(!match||match.finished||curGame().winner) return;
+  const prevServe=replay(match,curGame()).now.serve;
+  addPoint(w,reason,who);
+  const g=curGame();
+  if(g.winner){
+    const sc=replay(match,g).now.score;
+    say(`ゲーム。${tname(match,g.winner)}。${sc[g.winner]} 対 ${sc[other(g.winner)]}`+(match.finished?'。試合終了です':''));
+  } else {
+    say((w!==prevServe?'サービスオーバー。':'')+callScore()+(lastToast.startsWith('インターバル')?'。インターバル':''));
+  }
+}
+function scoreNow(){ if(!match) return null; return replay(match,curGame()).now.score; }
+function callScore(){
+  if(!match) return '';
+  const g=curGame(), now=replay(match,g).now, s=now.score, sv=now.serve;
+  return g.winner?'':`${s[sv]} 対 ${s[other(sv)]}`;
+}
+function say(text){
+  if(!text||!$('speakOn').checked||!('speechSynthesis' in window)) return;
+  const u=new SpeechSynthesisUtterance(text); u.lang='ja-JP'; u.rate=1.05;
+  speaking=true; stopRec();
+  const done=()=>{ speaking=false; if(listening&&vmode==='cont') startRec(); else if(vmode==='once'){ listening=false; setMicUI(); } };
+  u.onend=done; u.onerror=done;
+  try{ speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){ done(); }
+  setTimeout(()=>{ if(speaking) done(); },6000);
+}
+$('mic').onclick=()=>{
+  if(!SR){ heardMsg('このブラウザは声での入力に対応していません。AndroidのChromeで開いてください。','',''); return; }
+  if(listening){ listening=false; stopRec(); setMicUI(); releaseWake(); heardMsg('止めました。',''); return; }
+  listening=true; setMicUI(); heardMsg(vmode==='cont'?'聞いています。得点したら話してください。':'どうぞ。',''); startRec(); keepAwake();
+};
+document.querySelectorAll('[data-vmode]').forEach(b=>b.onclick=()=>{ vmode=b.dataset.vmode; if(listening){ stopRec(); listening=false; } setMicUI(); });
+if(!SR){ heardMsg('このブラウザは声での入力に対応していません。AndroidのChromeで開くと使えます。',''); }
+
+// 画面が消えないようにする（試合中）
+let wake=null;
+async function keepAwake(){ try{ if('wakeLock' in navigator && !wake){ wake=await navigator.wakeLock.request('screen'); wake.addEventListener('release',()=>{ wake=null; }); } }catch(e){} }
+function releaseWake(){ try{ if(wake){ wake.release(); wake=null; } }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&listening){ keepAwake(); if(vmode==='cont'&&!rec&&!speaking) startRec(); } });
+
+// CSV
+$('csv').onclick=()=>{
+  const m=viewMatch; if(!m) return;
+  const head=['ゲーム','ラリー','サーブ側','サーバー','レシーバー','得点','A','B','決め手','誰が','時刻'];
+  const lines=[head];
+  m.games.forEach((g,gi)=>{
+    const rp=replay(m,g);
+    g.rallies.forEach((ra,i)=>{
+      const b=rp.before[i], after={...b.score}; after[ra.w]++;
+      const whoTeam=ra.reason?(ra.reason[0]==='w'?ra.w:other(ra.w)):null;
+      lines.push([gi+1,i+1,tname(m,b.serve),pname(m,b.serve,b.server),pname(m,other(b.serve),b.receiver),tname(m,ra.w),after.A,after.B,
+        ra.reason?reasonLabel(ra.reason):'', (m.type==='d'&&ra.who!=null&&whoTeam)?pname(m,whoTeam,ra.who):'', ra.t?new Date(ra.t).toLocaleTimeString('ja-JP'):'' ]);
+    });
+  });
+  const csv='\ufeff'+lines.map(r=>r.map(v=>{ v=String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }).join(',')).join('\r\n');
+  const d=new Date(m.created), stamp=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`badminton_${stamp}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.csv`; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
+  $('copyFb').textContent='CSVを保存しました。';
+};
+
+// ホーム画面に追加
+let installEvt=null;
+window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); installEvt=e; $('install').hidden=false; });
+$('install').onclick=async()=>{ if(!installEvt) return; installEvt.prompt(); try{ await installEvt.userChoice; }catch(e){} installEvt=null; $('install').hidden=true; };
+if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+
+// ---------- boot ----------
+buildChips(); refreshSetup();
+if(!match){
+  // sample in-progress example so the first view shows how it works
+  match={id:'sample',created:new Date().toISOString(),type:'d',sample:true,
+    teams:{A:{name:'チームA',players:['原田','佐藤']},B:{name:'チームB',players:['田中','鈴木']}},
+    P:21,cap:30,need:2,games:[{start:{serve:'A',server:0,receiver:0},rallies:[],winner:null}],finished:false};
+  const seq='AABABBAABAAB'.split(''), rs=['w:smash','e:net',null,'w:push','e:out',null,'w:drive','w:smash',null,'e:net','w:hairpin',null];
+  seq.forEach((w,i)=>match.games[0].rallies.push({w,reason:rs[i],who:i%2,t:0}));
+  lastToast='例として途中の試合を表示しています。「新しい試合」から本番を始めてください。';
+}
+viewMatch=match;
+renderMatch();
+})();
+</script>
+</body>
+</html>
