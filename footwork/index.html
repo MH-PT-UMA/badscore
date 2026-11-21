@@ -147,6 +147,8 @@ th{color:var(--sub);font-weight:600}
       <div class="row"><label>提示の順番</label>
         <div class="seg" id="orderSeg"><button data-v="same">同時</button><button data-v="audio">声が先</button><button data-v="visual">画面が先</button></div></div>
       <div class="row"><label>ずらす時間</label><input type="range" id="offset" min="0" max="1000" step="50"><span class="val" id="offsetV"></span></div>
+      <div class="note">間隔が短いときは自動で調整します：①読み上げが次の番号までに言い切れるよう速さを上げる ②ずらす時間を間隔の半分までに抑える。</div>
+      <div class="note" id="fastHint" style="color:var(--swing)"></div>
     </div>
 
     <div class="card">
@@ -233,6 +235,21 @@ function seg(id,key){
   const paint=()=>bs.forEach(b=>b.classList.toggle('on',b.dataset.v===S[key]));
   bs.forEach(b=>b.onclick=()=>{S[key]=b.dataset.v; paint(); save();}); paint();
 }
+function fastHint(){
+  const el=$('fastHint'); if(!el) return;
+  const iv=S.interval, msgs=[];
+  const off=Math.min(S.offset, iv*500);
+  if(S.order!=='same' && off<S.offset) msgs.push(`ずらす時間は${off}msに抑えます`);
+  const worst = S.mode==='racket' ? (S.fRead==='fore'?5:4) : 2;
+  const budget = S.order==='visual' ? iv-off/1000 : iv;
+  const need = worst*0.13/Math.max(0.2,budget-0.25);
+  if(S.voiceOn && need>S.rate+0.05) msgs.push(`読み上げは最大${Math.min(3,need).toFixed(1)}xまで自動で速くなります`);
+  if(S.voiceOn && need>3) msgs.push('この間隔では言い切れないことがあります（Fは「エフ」読みにすると短くなります）');
+  el.textContent = msgs.length ? '今の設定：'+msgs.join('／') : '';
+}
+['interval','offset','rate'].forEach(k=>$(k).addEventListener('input',fastHint));
+document.addEventListener('click',()=>setTimeout(fastHint,0));
+fastHint();
 seg('fReadSeg','fRead'); seg('orderSeg','order'); seg('followSeg','follow'); seg('facingSeg','facing');
 
 /* ---- voices ---- */
@@ -248,13 +265,19 @@ function loadVoices(){
   sel.onchange=()=>{S.voice=sel.value; save();};
 }
 loadVoices(); if(synth) synth.onvoiceschanged=loadVoices;
-function speak(text){
+/* 読み上げ：短い間隔でも最後まで言い切れるよう、残り時間から速さを自動で上げる */
+let autoRate=null;
+function speak(v, budgetSec=99){
   if(!S.voiceOn || !synth) return;
   try{
-    synth.cancel();
-    const u=new SpeechSynthesisUtterance(text);
-    u.lang='ja-JP'; u.rate=S.rate;
-    const v=synth.getVoices().find(v=>v.name===S.voice); if(v) u.voice=v;
+    if(synth.speaking || synth.pending) synth.cancel();
+    const sp=sayParts(v);
+    const need = sp.mora*0.13 / Math.max(0.2, budgetSec-0.25);   // 1拍≈0.13秒、出だしの遅れ≈0.25秒
+    const rate = Math.min(3, Math.max(S.rate, need));
+    autoRate = rate>S.rate+0.05 ? rate : null;
+    const u=new SpeechSynthesisUtterance(sp.text);
+    u.lang='ja-JP'; u.rate=rate;
+    const vo=synth.getVoices().find(x=>x.name===S.voice); if(vo) u.voice=vo;
     synth.speak(u);
   }catch(e){}
 }
@@ -283,7 +306,13 @@ function makeTrial(i){
   const follow = S.follow==='cue' ? (Math.random()<0.5?'visual':'audio') : S.follow;
   return {i, vis, aud, conflict, follow, ans: follow==='visual'?vis:aud};
 }
-const sayText = v => v[0]==='F' ? (S.fRead==='fore'?'フォア':'エフ')+v.slice(1) : v;
+// 数字はかなで読ませる（「4」を「し」と読ませない・短く言い切る）
+const KANA={'1':['いち',2],'2':['に',1],'3':['さん',2],'4':['よん',2],'5':['ご',1],'6':['ろく',2]};
+function sayParts(v){
+  const f = v[0]==='F', n = f ? v.slice(1) : v, k = KANA[n] || [n,2];
+  const pre = f ? (S.fRead==='fore' ? ['フォア',3] : ['エフ',2]) : ['',0];
+  return {text: pre[0]+k[0], mora: pre[1]+k[1]};
+}
 
 /* ---- camera / pose ---- */
 const MP='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
@@ -411,9 +440,12 @@ function presentTrial(t){
   $('counter').textContent=`${t.i} / ${trials.length}`;
   $('tiles').classList.add('hidden');
   setCue(t);
-  if(S.order==='same'){ showVisual(t); speak(sayText(t.aud)); }
-  else if(S.order==='audio'){ speak(sayText(t.aud)); T(()=>showVisual(t), S.offset); }
-  else { showVisual(t); T(()=>speak(sayText(t.aud)), S.offset); }
+  // カメラ判定中は次が来るまで時間があるので余裕を見る。間隔モードでは「ずらす時間」を間隔の半分までに抑える
+  const iv = useCam ? 3 : S.interval;
+  const off = Math.min(S.offset, iv*500);
+  if(S.order==='same'){ showVisual(t); speak(t.aud, iv); }
+  else if(S.order==='audio'){ speak(t.aud, iv); T(()=>showVisual(t), off); }
+  else { showVisual(t); T(()=>speak(t.aud, iv-off/1000), off); }
 }
 /* timer mode */
 function present(){
