@@ -81,14 +81,11 @@ body.racket .onlyFoot{display:none!important}
 
 @media (max-width:480px){.mode{padding:12px 10px}.mode .t{font-size:17px}.mode .ex{font-size:20px}.mode .d{font-size:12px}}
 /* camera */
-.camBox{position:relative;width:100%;max-width:480px;margin:8px auto 0;aspect-ratio:4/3;background:#000;border-radius:10px;overflow:hidden}
-.camBox canvas{width:100%;height:100%;display:block}
 .camMsg{font-size:13px;line-height:1.6;margin-top:8px;padding:8px 10px;border-radius:8px;background:#11151c;border:1px solid var(--line)}
 .camMsg.ok{border-color:var(--foot);color:var(--foot)}
 .camMsg.ng{border-color:var(--fore);color:#ffb3b3}
 .btnSub{background:#232834;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;cursor:pointer;font-size:14px;flex:1}
 .btnRow{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
-#stagePrev{position:absolute;right:14px;bottom:70px;width:min(26vw,240px);aspect-ratio:4/3;border-radius:8px;border:1px solid var(--line);background:#000}
 .status{font-size:clamp(18px,3vw,30px);font-weight:800;color:var(--sub)}
 .status.go{color:var(--foot)}
 .wide{grid-column:1/-1}
@@ -169,10 +166,9 @@ th{color:var(--sub);font-weight:600}
         <div class="row"><label>判定の広さ（スタート位置の円）</label><input type="range" id="radius" min="4" max="30" step="1"><span class="val" id="radiusV"></span></div>
         <div class="row"><label>戻ってから表示までの時間</label><input type="range" id="hold" min="0.2" max="2" step="0.1"><span class="val" id="holdV"></span></div>
         <div class="row"><label>＋ランダムな待ち（読まれ防止）</label><input type="range" id="jitter" min="0" max="2" step="0.1"><span class="val" id="jitterV"></span></div>
-        <div class="row"><label>練習中にカメラ映像を小さく表示</label><input type="checkbox" class="toggle" id="showPrev"></div>
         <div class="btnRow"><button class="btnSub" id="camStartBtn">① カメラを起動</button><button class="btnSub" id="homeBtn">② 3秒後にスタート位置を登録</button></div>
-        <div class="camBox"><canvas id="calibCv" width="640" height="480"></canvas></div>
-        <div class="camMsg" id="camMsg">カメラを起動し、全身（特に足首）が映る位置にタブレットを置いてください。スタート位置に立って「②」を押すと、3秒後にその位置を登録します。</div>
+        <div class="camMsg" id="camState">カメラ：停止中</div>
+        <div class="camMsg" id="camMsg">カメラを起動し、全身（特に足首）が映る位置にスマホ・タブレットを置いてください。映像は出さず、判定だけ行います。スタート位置に立って「②」を押すと、3秒後にその位置を登録します。</div>
         <div class="note">コートの前方（ネット側）に、少し高い位置から見下ろす向きで置くと、前後の動きも判定しやすくなります。カメラ判定中は「提示の間隔」は使われず、戻るたびに次の番号が出ます。</div>
       </div>
     </div>
@@ -189,7 +185,6 @@ th{color:var(--sub);font-weight:600}
   </div>
   <div class="tiles" id="countBox" style="display:none"><div class="big" id="countNum"></div></div>
   <div style="text-align:center"><span class="status" id="statusLbl"></span></div>
-  <canvas id="stagePrev" width="320" height="240" style="display:none"></canvas>
   <div class="bottom"><button id="pauseBtn">一時停止</button><button id="fsBtn">全画面</button><button id="stopBtn">終了</button></div>
 </div>
 
@@ -207,7 +202,7 @@ const $ = id => document.getElementById(id);
 const DEF = {mode:'foot', interval:3, reps:20, flash:0, fRate:50, showMap:true,
   voiceOn:true, voice:'', rate:1.2, fRead:'fore', order:'same', offset:300,
   conflict:30, follow:'cue',
-  camOn:false, facing:'user', radius:10, hold:0.5, jitter:0.5, showPrev:true};
+  camOn:false, facing:'user', radius:10, hold:0.5, jitter:0.5};
 let S = {...DEF};
 try{ Object.assign(S, JSON.parse(localStorage.getItem('fwFeint2')||'{}')); }catch(e){}
 const save = () => { try{ localStorage.setItem('fwFeint2', JSON.stringify(S)); }catch(e){} };
@@ -230,7 +225,7 @@ for(const k in sliders){
   const el=$(k), out=$(k+'V'); el.value=S[k]; out.textContent=sliders[k](el.value);
   el.oninput=()=>{ S[k]=+el.value; out.textContent=sliders[k](el.value); save(); };
 }
-['showMap','voiceOn','camOn','showPrev'].forEach(k=>{ const el=$(k); el.checked=S[k]; el.onchange=()=>{S[k]=el.checked; save(); paintCam();}; });
+['showMap','voiceOn','camOn'].forEach(k=>{ const el=$(k); el.checked=S[k]; el.onchange=()=>{S[k]=el.checked; save(); paintCam();}; });
 function paintCam(){ $('camSettings').style.display = S.camOn?'block':'none'; }
 paintCam();
 function seg(id,key){
@@ -309,6 +304,7 @@ async function startCamera(){
     return false;
   }
   video=document.createElement('video'); video.playsInline=true; video.muted=true; video.srcObject=stream;
+  video.setAttribute('playsinline',''); video.style.cssText='position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none'; document.body.appendChild(video);
   try{ await video.play(); }catch(e){}
   try{
     camMsg('姿勢推定モデルを読み込んでいます（初回は数秒〜十数秒）…');
@@ -345,8 +341,7 @@ function camLoop(){
       }
     }catch(e){}
   }
-  drawCam($('calibCv'));
-  if(running && S.camOn && S.showPrev) drawCam($('stagePrev'));
+  if(!running) showState();
   if(running && S.camOn) camTick();
   requestAnimationFrame(camLoop);
 }
@@ -359,25 +354,18 @@ function distHome(){
   return Infinity;
 }
 const inHome = () => distHome() < S.radius/100;
-function drawCam(cv){
-  if(!cv || cv.offsetParent===null) return;
-  const g=cv.getContext('2d'), W=cv.width, H=cv.height;
-  g.save();
-  if(S.facing==='user'){ g.translate(W,0); g.scale(-1,1); } // mirror
-  g.drawImage(video,0,0,W,H);
-  if(lms){
-    g.fillStyle='rgba(255,255,255,.8)';
-    [11,12,23,24,25,26,27,28].forEach(i=>{ const p=lms[i]; if(p) { g.beginPath(); g.arc(p.x*W,p.y*H,3,0,7); g.fill(); } });
+let lastState=0;
+function showState(){
+  const now=performance.now(); if(now-lastState<200) return; lastState=now;
+  const el=$('camState'); if(!el || el.offsetParent===null) return;
+  let txt, cls='';
+  if(!cur || now-cur.t>400 || (!cur.ank && !cur.hip)){ txt='カメラ：体が見えていません'; cls='ng'; }
+  else {
+    txt = 'カメラ：体を検出中（' + (cur.ank?'足首':'腰のみ・足首が見えない') + '）';
+    if(home){ const ok=inHome(); txt += ok ? '　／　スタート位置の中 ◎' : '　／　スタート位置の外'; cls = ok?'ok':''; }
+    else cls = cur.ank?'ok':'';
   }
-  const homeP = home && (home.ank||home.hip);
-  if(homeP){
-    const ok=inHome();
-    g.strokeStyle= ok?'#4fd1a5':'#ffb547'; g.lineWidth=3;
-    g.beginPath(); g.arc(homeP.x*W, homeP.y*H, S.radius/100*W, 0, 7); g.stroke();
-  }
-  const p = cur && (home ? (home.ank&&cur.ank?cur.ank:cur.hip) : (cur.ank||cur.hip));
-  if(p){ g.fillStyle='#ff6b6b'; g.beginPath(); g.arc(p.x*W,p.y*H,7,0,7); g.fill(); }
-  g.restore();
+  el.textContent=txt; el.className='camMsg '+cls;
 }
 $('camStartBtn').onclick=startCamera;
 $('homeBtn').onclick=async()=>{
@@ -390,7 +378,7 @@ $('homeBtn').onclick=async()=>{
     if(!cur || (!cur.ank && !cur.hip)){ camMsg('体が検出できませんでした。全身が映るように置いて、もう一度押してください。','ng'); return; }
     home={ank:cur.ank?{...cur.ank}:null, hip:cur.hip?{...cur.hip}:null};
     beep(1320,0.2);
-    camMsg(home.ank?'スタート位置を登録しました（足首で判定）。円の中に赤い点が入ると緑になります。':'登録しました（足首が見えないため腰で判定）。できれば足首まで映してください。','ok');
+    camMsg(home.ank?'スタート位置を登録しました（足首で判定）。下の表示が「スタート位置の中 ◎」になれば判定できています。':'登録しました（足首が見えないため腰で判定）。できれば足首まで映してください。','ok');
   },1000);
 };
 
@@ -480,7 +468,6 @@ async function start(){
   last=''; trials=Array.from({length:S.reps},(_,i)=>makeTrial(i+1)); idx=0; paused=false; running=true; phase='';
   $('setup').style.display='none'; $('result').style.display='none'; $('stage').style.display='flex';
   $('tiles').classList.add('hidden');
-  $('stagePrev').style.display = useCam&&S.showPrev ? 'block':'none';
   $('tileLbl').textContent = S.mode==='foot'?'フットワーク':'ラケットワーク';
   $('ruleLbl').textContent = {visual:'画面に従う',audio:'声に従う',cue:'合図で切替'}[S.follow];
   $('pauseBtn').textContent='一時停止';
