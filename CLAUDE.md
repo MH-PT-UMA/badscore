@@ -61,3 +61,9 @@
 ## 公開（GitHub Pages への反映）
 変更したファイルを `mh-pt-uma/badscore` の main に push すれば、1〜2分で公開URLに反映される。
 `sw.js` の `CACHE` の名前（例：`badscore-v2`）を上げると、古いキャッシュが確実に入れ替わる。
+
+## 別アプリ：視聴覚フェイント・トレーニング（`footwork/`）
+得点板とは独立したフットワーク／ラケットワーク練習アプリ。公開先：https://mh-pt-uma.github.io/badscore/footwork/
+- `footwork/index.html` 1ファイル。得点板のコードやデータ（`bad-score-v1`）には触れない。設定は `localStorage` の `fwFeint2`
+- モード：フットワーク（1〜6）／ラケットワーク（1〜6・F1〜F6、F＝フォア）。番号を画面表示＋`speechSynthesis` で読み上げ、一定割合で画面と声に違う番号を出す（フェイント）。従うのは画面／声／合図（枠の色：青＝見る、オレンジ＝聞く）
+- フットワークのカメラ判定：MediaPipe Pose Landmarker（`@mediapipe/tasks-vision` を jsDelivr から読み込み）。足首の中点（見えなければ腰）がスタート位置の円に戻ったら次の番号を出し、反応時間・往復時間を記録する。カメラは https でしか動かない

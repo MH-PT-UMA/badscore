@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1115">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="../icon-192.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<title>視聴覚フェイント・フットワーク</title>
+<style>
+:root{
+  --bg:#0f1115; --panel:#181b22; --line:#2a2f3a; --text:#eef1f6; --sub:#9aa3b2;
+  --foot:#4fd1a5; --swing:#ffb547; --fore:#ff6b6b; --see:#4aa8ff; --hear:#ff8a3d;
+  --accent:var(--foot);
+}
+body.racket{--accent:var(--swing)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif}
+button,select,input{font:inherit}
+.wrap{max-width:980px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 2px}
+.lead{color:var(--sub);font-size:13px;margin:0 0 14px;line-height:1.6}
+
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.mode{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:16px 14px;cursor:pointer;text-align:left;color:var(--text)}
+.mode .t{font-size:22px;font-weight:900}
+.mode .d{font-size:13px;color:var(--sub);margin-top:6px;line-height:1.5}
+.mode .ex{font-size:30px;font-weight:900;margin-top:8px;letter-spacing:.05em}
+.mode[data-v=foot] .ex{color:var(--foot)}
+.mode[data-v=racket] .ex{color:var(--swing)}
+.mode.on[data-v=foot]{border-color:var(--foot);background:rgba(79,209,165,.08)}
+.mode.on[data-v=racket]{border-color:var(--swing);background:rgba(255,181,71,.08)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.card h2{font-size:14px;margin:0 0 10px;color:var(--sub);font-weight:600;letter-spacing:.05em}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:9px 0;font-size:14px}
+.row label{flex:1}
+.row .val{min-width:56px;text-align:right;color:var(--sub);font-variant-numeric:tabular-nums}
+input[type=range]{width:150px;accent-color:var(--accent)}
+select{background:#0f1115;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;max-width:190px}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{flex:1;background:transparent;color:var(--sub);border:0;padding:8px 8px;font-size:13px;cursor:pointer}
+.seg button.on{background:#2b3240;color:var(--text);font-weight:700}
+.note{font-size:12px;color:var(--sub);line-height:1.6;margin-top:6px}
+.start{display:block;width:100%;margin:14px 0 6px;padding:16px;font-size:20px;font-weight:800;
+  border:0;border-radius:14px;background:var(--accent);color:#14100a;cursor:pointer}
+.court{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:150px;margin:6px auto 2px}
+.court .net{grid-column:1/3;height:4px;background:#e9e9e9;border-radius:2px;margin-bottom:4px}
+.court div.c{border:1px solid var(--line);border-radius:6px;text-align:center;padding:7px 0;font-weight:700}
+.toggle{width:44px;height:26px;appearance:none;background:#333a47;border-radius:13px;position:relative;cursor:pointer;flex:none}
+.toggle:checked{background:var(--accent)}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}
+.toggle:checked::after{left:21px}
+body.foot .onlyRacket{display:none!important}
+body.racket .onlyFoot{display:none!important}
+
+/* training screen */
+#stage{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:10;
+  border:14px solid transparent;transition:border-color .1s}
+#stage.see{border-color:var(--see)} #stage.hear{border-color:var(--hear)}
+.top{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;color:var(--sub);font-size:15px}
+.cue{font-weight:900;font-size:clamp(22px,4vw,40px);letter-spacing:.1em}
+.cue.see{color:var(--see)} .cue.hear{color:var(--hear)}
+.tiles{flex:1;display:flex;align-items:center;justify-content:center}
+.tile{text-align:center}
+.tile .lbl{font-size:clamp(16px,2.6vw,28px);color:var(--sub);margin-bottom:.3em}
+.tile .num{font-weight:900;line-height:1;font-size:clamp(90px,min(42vh,50vw),460px);font-variant-numeric:tabular-nums;color:var(--accent)}
+.tile .num.fore{color:var(--fore)}
+.big{font-size:clamp(90px,min(40vh,50vw),420px);font-weight:900;color:var(--text)}
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:4px;width:120px;margin:12px auto 0}
+.mini .net{grid-column:1/3;height:3px;background:#ddd}
+.mini div.c{height:28px;border:1px solid var(--line);border-radius:4px;font-size:12px;display:flex;align-items:center;justify-content:center;color:var(--sub)}
+.mini div.c.hit{background:var(--foot);color:#062016;border-color:var(--foot);font-weight:800}
+.bottom{display:flex;gap:10px;justify-content:center;padding:10px 0 14px}
+.bottom button{background:#232834;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 20px;font-size:16px;cursor:pointer}
+.hidden{visibility:hidden}
+
+@media (max-width:480px){.mode{padding:12px 10px}.mode .t{font-size:17px}.mode .ex{font-size:20px}.mode .d{font-size:12px}}
+/* camera */
+.camBox{position:relative;width:100%;max-width:480px;margin:8px auto 0;aspect-ratio:4/3;background:#000;border-radius:10px;overflow:hidden}
+.camBox canvas{width:100%;height:100%;display:block}
+.camMsg{font-size:13px;line-height:1.6;margin-top:8px;padding:8px 10px;border-radius:8px;background:#11151c;border:1px solid var(--line)}
+.camMsg.ok{border-color:var(--foot);color:var(--foot)}
+.camMsg.ng{border-color:var(--fore);color:#ffb3b3}
+.btnSub{background:#232834;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;cursor:pointer;font-size:14px;flex:1}
+.btnRow{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+#stagePrev{position:absolute;right:14px;bottom:70px;width:min(26vw,240px);aspect-ratio:4/3;border-radius:8px;border:1px solid var(--line);background:#000}
+.status{font-size:clamp(18px,3vw,30px);font-weight:800;color:var(--sub)}
+.status.go{color:var(--foot)}
+.wide{grid-column:1/-1}
+
+/* result */
+#result{display:none}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:center}
+th{color:var(--sub);font-weight:600}
+.x{color:var(--hear);font-weight:800}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700}
+.pill.see{background:rgba(74,168,255,.18);color:var(--see)}
+.pill.hear{background:rgba(255,138,61,.18);color:var(--hear)}
+.btns{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.btns button{flex:1;padding:12px;border-radius:10px;border:1px solid var(--line);background:#232834;color:var(--text);cursor:pointer;font-size:15px}
+</style>
+</head>
+<body class="foot">
+
+<div class="wrap" id="setup">
+  <h1>視聴覚フェイント・トレーニング</h1>
+  <p class="lead">番号を画面に表示し、同時に声でも読み上げます。フェイントをONにすると、画面と声で<b>違う番号</b>が出ます。「どちらに従うか」のルールで正解が決まります。</p>
+
+  <div class="modes">
+    <button class="mode" data-v="foot">
+      <div class="t">フットワーク</div>
+      <div class="d">番号の位置へ移動</div>
+      <div class="ex">1〜6</div>
+    </button>
+    <button class="mode" data-v="racket">
+      <div class="t">ラケットワーク</div>
+      <div class="d">番号の位置でラケットを振る<br>F＝フォアで振る</div>
+      <div class="ex">1〜6 / <span style="color:var(--fore)">F1〜F6</span></div>
+    </button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>基本</h2>
+      <div class="row"><label>提示の間隔</label><input type="range" id="interval" min="1" max="8" step="0.5"><span class="val" id="intervalV"></span></div>
+      <div class="row"><label>本数</label><input type="range" id="reps" min="5" max="60" step="1"><span class="val" id="repsV"></span></div>
+      <div class="row"><label>番号を消すまでの時間</label><input type="range" id="flash" min="0" max="3" step="0.25"><span class="val" id="flashV"></span></div>
+      <div class="row onlyRacket"><label>F（フォア）の出現率</label><input type="range" id="fRate" min="0" max="100" step="10"><span class="val" id="fRateV"></span></div>
+      <div class="row onlyFoot"><label>コート図を表示</label><input type="checkbox" class="toggle" id="showMap"></div>
+      <div class="note">「消すまでの時間」を0にすると次の番号まで表示し続けます。</div>
+      <div class="onlyFoot">
+        <div class="court"><div class="net"></div><div class="c">1</div><div class="c">2</div><div class="c">3</div><div class="c">4</div><div class="c">5</div><div class="c">6</div></div>
+        <div class="note" style="text-align:center">移動番号の配置（上がネット側）</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>音声</h2>
+      <div class="row"><label>読み上げ</label><input type="checkbox" class="toggle" id="voiceOn"></div>
+      <div class="row"><label>声</label><select id="voiceSel"></select></div>
+      <div class="row"><label>話す速さ</label><input type="range" id="rate" min="0.8" max="2" step="0.1"><span class="val" id="rateV"></span></div>
+      <div class="row onlyRacket"><label>Fの読み方</label>
+        <div class="seg" id="fReadSeg"><button data-v="fore">フォア</button><button data-v="ef">エフ</button></div></div>
+      <div class="row"><label>提示の順番</label>
+        <div class="seg" id="orderSeg"><button data-v="same">同時</button><button data-v="audio">声が先</button><button data-v="visual">画面が先</button></div></div>
+      <div class="row"><label>ずらす時間</label><input type="range" id="offset" min="0" max="1000" step="50"><span class="val" id="offsetV"></span></div>
+    </div>
+
+    <div class="card">
+      <h2>フェイント</h2>
+      <div class="row"><label>画面と声をずらす割合</label><input type="range" id="conflict" min="0" max="100" step="10"><span class="val" id="conflictV"></span></div>
+      <div class="row"><label>従うのは</label>
+        <div class="seg" id="followSeg"><button data-v="visual">画面</button><button data-v="audio">声</button><button data-v="cue">合図で切替</button></div></div>
+      <div class="note">「合図で切替」は毎回ランダムで、枠が<b style="color:var(--see)">青＝見る（画面に従う）</b>、<b style="color:var(--hear)">オレンジ＝聞く（声に従う）</b>になります。</div>
+    </div>
+
+    <div class="card wide onlyFoot">
+      <h2>カメラ判定（スタート位置に戻ったら次を表示）</h2>
+      <div class="row"><label>カメラ判定を使う</label><input type="checkbox" class="toggle" id="camOn"></div>
+      <div id="camSettings">
+        <div class="row"><label>カメラ</label>
+          <div class="seg" id="facingSeg"><button data-v="user">前面（インカメ）</button><button data-v="environment">背面</button></div></div>
+        <div class="row"><label>判定の広さ（スタート位置の円）</label><input type="range" id="radius" min="4" max="30" step="1"><span class="val" id="radiusV"></span></div>
+        <div class="row"><label>戻ってから表示までの時間</label><input type="range" id="hold" min="0.2" max="2" step="0.1"><span class="val" id="holdV"></span></div>
+        <div class="row"><label>＋ランダムな待ち（読まれ防止）</label><input type="range" id="jitter" min="0" max="2" step="0.1"><span class="val" id="jitterV"></span></div>
+        <div class="row"><label>練習中にカメラ映像を小さく表示</label><input type="checkbox" class="toggle" id="showPrev"></div>
+        <div class="btnRow"><button class="btnSub" id="camStartBtn">① カメラを起動</button><button class="btnSub" id="homeBtn">② 3秒後にスタート位置を登録</button></div>
+        <div class="camBox"><canvas id="calibCv" width="640" height="480"></canvas></div>
+        <div class="camMsg" id="camMsg">カメラを起動し、全身（特に足首）が映る位置にタブレットを置いてください。スタート位置に立って「②」を押すと、3秒後にその位置を登録します。</div>
+        <div class="note">コートの前方（ネット側）に、少し高い位置から見下ろす向きで置くと、前後の動きも判定しやすくなります。カメラ判定中は「提示の間隔」は使われず、戻るたびに次の番号が出ます。</div>
+      </div>
+    </div>
+  </div>
+
+  <button class="start" id="startBtn">スタート</button>
+  <div class="note" style="text-align:center">マナーモードだと音が出ないことがあります。スマホ・タブレットを壁際に置き、全画面での使用がおすすめです。</div>
+</div>
+
+<div id="stage">
+  <div class="top"><span id="counter"></span><span class="cue" id="cueLbl"></span><span id="ruleLbl"></span></div>
+  <div class="tiles" id="tiles">
+    <div class="tile"><div class="lbl" id="tileLbl"></div><div class="num" id="bigNum"></div><div class="mini" id="mini"></div></div>
+  </div>
+  <div class="tiles" id="countBox" style="display:none"><div class="big" id="countNum"></div></div>
+  <div style="text-align:center"><span class="status" id="statusLbl"></span></div>
+  <canvas id="stagePrev" width="320" height="240" style="display:none"></canvas>
+  <div class="bottom"><button id="pauseBtn">一時停止</button><button id="fsBtn">全画面</button><button id="stopBtn">終了</button></div>
+</div>
+
+<div class="wrap" id="result">
+  <h1>結果（答え合わせ）</h1>
+  <p class="lead" id="resSummary"></p>
+  <div class="card" style="overflow-x:auto">
+    <table><thead id="resHead"></thead><tbody id="resBody"></tbody></table>
+  </div>
+  <div class="btns"><button id="againBtn">同じ設定でもう一度</button><button id="backBtn">設定に戻る</button></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const DEF = {mode:'foot', interval:3, reps:20, flash:0, fRate:50, showMap:true,
+  voiceOn:true, voice:'', rate:1.2, fRead:'fore', order:'same', offset:300,
+  conflict:30, follow:'cue',
+  camOn:false, facing:'user', radius:10, hold:0.5, jitter:0.5, showPrev:true};
+let S = {...DEF};
+try{ Object.assign(S, JSON.parse(localStorage.getItem('fwFeint2')||'{}')); }catch(e){}
+const save = () => { try{ localStorage.setItem('fwFeint2', JSON.stringify(S)); }catch(e){} };
+
+/* ---- mode ---- */
+const modeBtns=[...document.querySelectorAll('.mode')];
+function paintMode(){
+  document.body.className = S.mode;
+  modeBtns.forEach(b=>b.classList.toggle('on', b.dataset.v===S.mode));
+  $('startBtn').textContent = (S.mode==='foot'?'フットワーク':'ラケットワーク')+'　スタート';
+}
+modeBtns.forEach(b=>b.onclick=()=>{ S.mode=b.dataset.v; paintMode(); save(); });
+paintMode();
+
+/* ---- settings UI ---- */
+const sliders = {interval:v=>v+'秒', reps:v=>v+'本', flash:v=>v==0?'消さない':v+'秒', fRate:v=>v+'%',
+  rate:v=>(+v).toFixed(1)+'x', offset:v=>v+'ms', conflict:v=>v+'%',
+  radius:v=>v+'%', hold:v=>(+v).toFixed(1)+'秒', jitter:v=>v==0?'なし':'0〜'+(+v).toFixed(1)+'秒'};
+for(const k in sliders){
+  const el=$(k), out=$(k+'V'); el.value=S[k]; out.textContent=sliders[k](el.value);
+  el.oninput=()=>{ S[k]=+el.value; out.textContent=sliders[k](el.value); save(); };
+}
+['showMap','voiceOn','camOn','showPrev'].forEach(k=>{ const el=$(k); el.checked=S[k]; el.onchange=()=>{S[k]=el.checked; save(); paintCam();}; });
+function paintCam(){ $('camSettings').style.display = S.camOn?'block':'none'; }
+paintCam();
+function seg(id,key){
+  const bs=[...$(id).querySelectorAll('button')];
+  const paint=()=>bs.forEach(b=>b.classList.toggle('on',b.dataset.v===S[key]));
+  bs.forEach(b=>b.onclick=()=>{S[key]=b.dataset.v; paint(); save();}); paint();
+}
+seg('fReadSeg','fRead'); seg('orderSeg','order'); seg('followSeg','follow'); seg('facingSeg','facing');
+
+/* ---- voices ---- */
+const synth = window.speechSynthesis;
+function loadVoices(){
+  const sel=$('voiceSel');
+  if(!synth){ sel.innerHTML='<option>非対応</option>'; return; }
+  const vs = synth.getVoices().filter(v=>/^ja/i.test(v.lang));
+  sel.innerHTML='';
+  if(!vs.length){ sel.innerHTML='<option value="">標準</option>'; return; }
+  vs.forEach(v=>{ const o=document.createElement('option'); o.value=v.name; o.textContent=v.name; sel.appendChild(o); });
+  if(S.voice && vs.some(v=>v.name===S.voice)) sel.value=S.voice; else S.voice=sel.value;
+  sel.onchange=()=>{S.voice=sel.value; save();};
+}
+loadVoices(); if(synth) synth.onvoiceschanged=loadVoices;
+function speak(text){
+  if(!S.voiceOn || !synth) return;
+  try{
+    synth.cancel();
+    const u=new SpeechSynthesisUtterance(text);
+    u.lang='ja-JP'; u.rate=S.rate;
+    const v=synth.getVoices().find(v=>v.name===S.voice); if(v) u.voice=v;
+    synth.speak(u);
+  }catch(e){}
+}
+
+/* ---- beep ---- */
+let actx=null;
+function beep(freq=880,dur=0.12){
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.frequency.value=freq; o.connect(g); g.connect(actx.destination);
+    g.gain.setValueAtTime(0.25,actx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+dur);
+    o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+
+/* ---- trial generation ---- */
+const rnd = n => Math.floor(Math.random()*n)+1;
+const makeVal = () => S.mode==='foot' ? String(rnd(6)) : (Math.random()*100 < S.fRate ? 'F':'') + rnd(6);
+function otherVal(v){ let t; do{ t=makeVal(); }while(t===v); return t; }
+let last='';
+function makeTrial(i){
+  let vis; do{ vis=makeVal(); }while(vis===last); last=vis;
+  const conflict = Math.random()*100 < S.conflict;
+  const aud = conflict ? otherVal(vis) : vis;
+  const follow = S.follow==='cue' ? (Math.random()<0.5?'visual':'audio') : S.follow;
+  return {i, vis, aud, conflict, follow, ans: follow==='visual'?vis:aud};
+}
+const sayText = v => v[0]==='F' ? (S.fRead==='fore'?'フォア':'エフ')+v.slice(1) : v;
+
+/* ---- camera / pose ---- */
+const MP='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const MODEL='https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+let video=null, stream=null, pose=null, camReady=false, lastVT=-1;
+let cur=null;          // {ank:{x,y}|null, hip:{x,y}|null, t}
+let home=null;         // {ank, hip}
+let lms=null;
+function camMsg(txt, cls=''){ const m=$('camMsg'); m.textContent=txt; m.className='camMsg '+cls; }
+async function startCamera(){
+  if(camReady) return true;
+  try{
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('nomedia');
+    camMsg('カメラを起動しています…');
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:S.facing, width:{ideal:640}, height:{ideal:480}}, audio:false});
+  }catch(e){
+    camMsg('カメラを使えませんでした。Claudeの画面の中ではカメラは使えないため、ダウンロードしたファイル版をChromeやSafariで開いてください（詳しくは説明を参照）。カメラの許可を「拒否」した場合は、ブラウザの設定から許可してください。','ng');
+    return false;
+  }
+  video=document.createElement('video'); video.playsInline=true; video.muted=true; video.srcObject=stream;
+  try{ await video.play(); }catch(e){}
+  try{
+    camMsg('姿勢推定モデルを読み込んでいます（初回は数秒〜十数秒）…');
+    const vision = await import(MP+'/vision_bundle.mjs');
+    const fs = await vision.FilesetResolver.forVisionTasks(MP+'/wasm');
+    const opt = d => ({baseOptions:{modelAssetPath:MODEL, delegate:d}, runningMode:'VIDEO', numPoses:1});
+    try{ pose = await vision.PoseLandmarker.createFromOptions(fs, opt('GPU')); }
+    catch(e){ pose = await vision.PoseLandmarker.createFromOptions(fs, opt('CPU')); }
+  }catch(e){
+    camMsg('姿勢推定モデルを読み込めませんでした。インターネットに接続した状態で開いてください。','ng');
+    return false;
+  }
+  camReady=true;
+  camMsg(home?'カメラ準備OK。スタート位置は登録済みです。':'カメラ準備OK。スタート位置に立って「②」を押してください。','ok');
+  requestAnimationFrame(camLoop);
+  return true;
+}
+function mid(a,b,minVis=0.5){
+  if(!a||!b) return null;
+  if((a.visibility??1)<minVis || (b.visibility??1)<minVis) return null;
+  return {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+}
+function ema(prev,p,k=0.5){ return prev&&p ? {x:prev.x+(p.x-prev.x)*k, y:prev.y+(p.y-prev.y)*k} : p; }
+function camLoop(){
+  if(!camReady) return;
+  if(video.readyState>=2 && video.currentTime!==lastVT){
+    lastVT=video.currentTime;
+    try{
+      const r = pose.detectForVideo(video, performance.now());
+      lms = r.landmarks && r.landmarks[0];
+      if(lms){
+        const ank=mid(lms[27],lms[28]), hip=mid(lms[23],lms[24],0.3);
+        cur = {ank: ema(cur&&cur.ank, ank), hip: ema(cur&&cur.hip, hip), t:performance.now()};
+      }
+    }catch(e){}
+  }
+  drawCam($('calibCv'));
+  if(running && S.camOn && S.showPrev) drawCam($('stagePrev'));
+  if(running && S.camOn) camTick();
+  requestAnimationFrame(camLoop);
+}
+function distHome(){
+  if(!home || !cur || performance.now()-cur.t>400) return Infinity;
+  const ar = video ? video.videoHeight/video.videoWidth || 0.75 : 0.75;
+  const d=(a,b)=>Math.hypot(a.x-b.x, (a.y-b.y)*ar);
+  if(home.ank && cur.ank) return d(cur.ank, home.ank);
+  if(home.hip && cur.hip) return d(cur.hip, home.hip);
+  return Infinity;
+}
+const inHome = () => distHome() < S.radius/100;
+function drawCam(cv){
+  if(!cv || cv.offsetParent===null) return;
+  const g=cv.getContext('2d'), W=cv.width, H=cv.height;
+  g.save();
+  if(S.facing==='user'){ g.translate(W,0); g.scale(-1,1); } // mirror
+  g.drawImage(video,0,0,W,H);
+  if(lms){
+    g.fillStyle='rgba(255,255,255,.8)';
+    [11,12,23,24,25,26,27,28].forEach(i=>{ const p=lms[i]; if(p) { g.beginPath(); g.arc(p.x*W,p.y*H,3,0,7); g.fill(); } });
+  }
+  const homeP = home && (home.ank||home.hip);
+  if(homeP){
+    const ok=inHome();
+    g.strokeStyle= ok?'#4fd1a5':'#ffb547'; g.lineWidth=3;
+    g.beginPath(); g.arc(homeP.x*W, homeP.y*H, S.radius/100*W, 0, 7); g.stroke();
+  }
+  const p = cur && (home ? (home.ank&&cur.ank?cur.ank:cur.hip) : (cur.ank||cur.hip));
+  if(p){ g.fillStyle='#ff6b6b'; g.beginPath(); g.arc(p.x*W,p.y*H,7,0,7); g.fill(); }
+  g.restore();
+}
+$('camStartBtn').onclick=startCamera;
+$('homeBtn').onclick=async()=>{
+  if(!(await startCamera())) return;
+  let k=3; camMsg(`${k}秒後に登録します。スタート位置に立ってください…`); beep(660);
+  const iv=setInterval(()=>{
+    k--;
+    if(k>0){ camMsg(`${k}…`); beep(660); return; }
+    clearInterval(iv);
+    if(!cur || (!cur.ank && !cur.hip)){ camMsg('体が検出できませんでした。全身が映るように置いて、もう一度押してください。','ng'); return; }
+    home={ank:cur.ank?{...cur.ank}:null, hip:cur.hip?{...cur.hip}:null};
+    beep(1320,0.2);
+    camMsg(home.ank?'スタート位置を登録しました（足首で判定）。円の中に赤い点が入ると緑になります。':'登録しました（足首が見えないため腰で判定）。できれば足首まで映してください。','ok');
+  },1000);
+};
+
+/* ---- run ---- */
+let trials=[], idx=0, timers=[], paused=false, running=false, wakeLock=null;
+let useCam=false, phase='', homeSince=0, waitMs=0, tPresent=0, outSince=0;
+const T=(fn,ms)=>timers.push(setTimeout(fn,ms));
+const clearT=()=>{ timers.forEach(clearTimeout); timers=[]; };
+
+function buildMini(){
+  const m=$('mini'); m.innerHTML='<div class="net"></div>'+[1,2,3,4,5,6].map(n=>`<div class="c" data-n="${n}">${n}</div>`).join('');
+  m.style.display = (S.mode==='foot' && S.showMap)?'grid':'none';
+}
+function showVisual(t){
+  const n=$('bigNum'); n.textContent=t.vis; n.classList.toggle('fore', t.vis[0]==='F');
+  $('mini').querySelectorAll('.c').forEach(c=>c.classList.toggle('hit', c.dataset.n===t.vis));
+  $('tiles').classList.remove('hidden');
+  if(S.flash>0) T(()=>$('tiles').classList.add('hidden'), S.flash*1000);
+}
+function setCue(t){
+  const st=$('stage'), lbl=$('cueLbl');
+  st.classList.remove('see','hear');
+  if(S.follow==='cue'){
+    const c = t.follow==='visual'?'see':'hear';
+    st.classList.add(c); lbl.className='cue '+c; lbl.textContent = t.follow==='visual'?'見る':'聞く';
+  } else { lbl.className='cue'; lbl.textContent=''; }
+}
+function status(txt, go=false){ const s=$('statusLbl'); s.textContent=txt; s.className='status'+(go?' go':''); }
+function presentTrial(t){
+  $('counter').textContent=`${t.i} / ${trials.length}`;
+  $('tiles').classList.add('hidden');
+  setCue(t);
+  if(S.order==='same'){ showVisual(t); speak(sayText(t.aud)); }
+  else if(S.order==='audio'){ speak(sayText(t.aud)); T(()=>showVisual(t), S.offset); }
+  else { showVisual(t); T(()=>speak(sayText(t.aud)), S.offset); }
+}
+/* timer mode */
+function present(){
+  if(paused) return;
+  if(idx>=trials.length){ T(finish, 1200); return; }
+  presentTrial(trials[idx]); idx++;
+  T(present, S.interval*1000);
+}
+/* camera mode: state machine run every frame */
+function armWait(){ phase='waitHome'; homeSince=0; waitMs = S.hold*1000 + Math.random()*S.jitter*1000; }
+function camTick(){
+  if(paused || !phase) return;
+  const now=performance.now(), h=inHome();
+  if(phase==='waitHome'){
+    if(h){ if(!homeSince) homeSince=now; status('そのまま…'); }
+    else { homeSince=0; status('スタート位置へ'); }
+    if(homeSince && now-homeSince>=waitMs){
+      if(idx>=trials.length){ phase=''; status('おわり'); T(finish,800); return; }
+      const t=trials[idx]; presentTrial(t); tPresent=now; t.tP=now;
+      phase='waitLeave'; outSince=0; status('GO', true);
+    }
+  } else if(phase==='waitLeave'){
+    if(!h){ if(!outSince) outSince=now; if(now-outSince>120){ trials[idx].rt=outSince-tPresent; phase='waitReturn'; status(''); } }
+    else outSince=0;
+  } else if(phase==='waitReturn'){
+    if(h){
+      const t=trials[idx]; t.rtt=now-tPresent; idx++;
+      $('tiles').classList.add('hidden'); $('stage').classList.remove('see','hear'); $('cueLbl').textContent='';
+      if(idx>=trials.length){ phase=''; status('おわり'); T(finish,800); return; }
+      armWait();
+    }
+  }
+}
+function countdown(n, then){
+  $('tiles').style.display='none'; $('countBox').style.display='flex';
+  $('stage').classList.remove('see','hear'); $('cueLbl').textContent=''; status('');
+  const step=k=>{
+    if(k===0){ $('countBox').style.display='none'; $('tiles').style.display='flex'; beep(1320,0.2); then(); return; }
+    $('countNum').textContent=k; beep(660); T(()=>step(k-1),1000);
+  };
+  step(n);
+}
+async function start(){
+  save();
+  beep(1,0.01);
+  if(synth && S.voiceOn){ try{ const u=new SpeechSynthesisUtterance(' '); u.volume=0; synth.speak(u);}catch(e){} }
+  useCam = S.mode==='foot' && S.camOn;
+  if(useCam){
+    if(!(await startCamera())) { $('camMsg').scrollIntoView({block:'center'}); return; }
+    if(!home){ camMsg('先に「②」でスタート位置を登録してください。','ng'); $('camMsg').scrollIntoView({block:'center'}); return; }
+  }
+  last=''; trials=Array.from({length:S.reps},(_,i)=>makeTrial(i+1)); idx=0; paused=false; running=true; phase='';
+  $('setup').style.display='none'; $('result').style.display='none'; $('stage').style.display='flex';
+  $('tiles').classList.add('hidden');
+  $('stagePrev').style.display = useCam&&S.showPrev ? 'block':'none';
+  $('tileLbl').textContent = S.mode==='foot'?'フットワーク':'ラケットワーク';
+  $('ruleLbl').textContent = {visual:'画面に従う',audio:'声に従う',cue:'合図で切替'}[S.follow];
+  $('pauseBtn').textContent='一時停止';
+  $('counter').textContent=`0 / ${S.reps}`;
+  buildMini();
+  try{ wakeLock = await navigator.wakeLock?.request('screen'); }catch(e){}
+  countdown(3, useCam ? armWait : present);
+}
+function stopRun(){
+  clearT(); running=false; phase=''; status(''); try{synth&&synth.cancel();}catch(e){}
+  try{ wakeLock&&wakeLock.release(); }catch(e){} wakeLock=null;
+  try{ if(document.fullscreenElement) document.exitFullscreen(); }catch(e){}
+}
+const sec = ms => ms==null ? '—' : (ms/1000).toFixed(2);
+function finish(){
+  const done = trials.filter((t,i)=> useCam ? t.rtt!=null : i<idx);
+  stopRun();
+  $('stage').style.display='none'; $('result').style.display='block';
+  const nc = done.filter(t=>t.conflict).length;
+  let sum = `${S.mode==='foot'?'フットワーク':'ラケットワーク'}：${done.length}本中、フェイント（画面と声が違う）${nc}本。オレンジの数字が食い違った回です。`;
+  if(useCam && done.length){
+    const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+    const rtA=avg(done.filter(t=>t.rt!=null).map(t=>t.rt));
+    const rtC=avg(done.filter(t=>t.conflict&&t.rt!=null).map(t=>t.rt));
+    const rtN=avg(done.filter(t=>!t.conflict&&t.rt!=null).map(t=>t.rt));
+    sum += `　反応時間の平均 ${sec(rtA)}秒（一致 ${sec(rtN)}秒／フェイント ${sec(rtC)}秒）、往復の平均 ${sec(avg(done.map(t=>t.rtt)))}秒。`;
+  }
+  $('resSummary').textContent = sum;
+  $('resHead').innerHTML = '<tr><th>#</th><th>画面</th><th>声</th><th>従う</th><th>正解</th>' + (useCam?'<th>反応(秒)</th><th>往復(秒)</th>':'') + '</tr>';
+  $('resBody').innerHTML = done.map(t=>{
+    const c = v => t.conflict ? `<span class="x">${v}</span>` : v;
+    const f = t.follow==='visual'?'<span class="pill see">見る</span>':'<span class="pill hear">聞く</span>';
+    return `<tr><td>${t.i}</td><td>${c(t.vis)}</td><td>${c(t.aud)}</td><td>${f}</td><td><b>${t.ans}</b></td>` +
+      (useCam?`<td>${sec(t.rt)}</td><td>${sec(t.rtt)}</td>`:'') + '</tr>';
+  }).join('');
+  window.scrollTo(0,0);
+}
+
+$('startBtn').onclick=start;
+$('againBtn').onclick=start;
+$('backBtn').onclick=()=>{ $('result').style.display='none'; $('setup').style.display='block'; };
+$('stopBtn').onclick=finish;
+$('pauseBtn').onclick=()=>{
+  if(!running) return;
+  paused=!paused;
+  if(paused){ clearT(); phase=''; status('一時停止中'); try{synth&&synth.cancel();}catch(e){} $('pauseBtn').textContent='再開'; }
+  else {
+    $('pauseBtn').textContent='一時停止';
+    if(useCam){ const t=trials[idx]; if(t){ delete t.rt; delete t.rtt; } countdown(3, armWait); }
+    else countdown(3, present);
+  }
+};
+$('fsBtn').onclick=()=>{
+  try{
+    const st=$('stage');
+    if(document.fullscreenElement) document.exitFullscreen();
+    else { const p=(st.requestFullscreen||st.webkitRequestFullscreen).call(st); p&&p.catch&&p.catch(()=>{}); }
+  }catch(e){}
+};
+document.addEventListener('keydown',e=>{ if(running && e.code==='Space'){ e.preventDefault(); $('pauseBtn').click(); } });
+document.querySelectorAll('#facingSeg button').forEach(b=>b.addEventListener('click',()=>{
+  if(!camReady) return;
+  camReady=false; try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+  pose=null; home=null; cur=null; lms=null;
+  camMsg('カメラを切り替えました。もう一度「①」から準備してください。');
+}));
+
+</script>
+</body>
+</html>
